@@ -1,0 +1,26 @@
+# General
+.DS_Store
+*.log
+*.tmp
+*.swp
+.env
+.env.*
+
+# IDE
+.idea/
+.vscode/
+
+# Node
+game-agent-frontend/node_modules/
+game-agent-frontend/dist/
+
+# Java / Maven
+game-agent-backend/target/
+
+# Coverage / Reports
+coverage/
+*.lcov
+
+# OS
+Thumbs.db
+

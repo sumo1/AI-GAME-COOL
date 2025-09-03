@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  # Elasticsearch (用于RAG向量搜索)
+  elasticsearch:
+    image: elasticsearch:8.11.0
+    container_name: game-agent-es
+    environment:
+      # 单节点模式
+      - discovery.type=single-node
+      # 关闭安全认证（开发环境）
+      - xpack.security.enabled=false
+      # JVM内存设置
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      # 集群名称
+      - cluster.name=game-agent-cluster
+      # 节点名称
+      - node.name=game-agent-node
+      # 启用向量搜索
+      - indices.query.bool.max_clause_count=2048
+      # 中文分词器（可选）
+      - analysis.analyzer.default.type=standard
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+      - es-logs:/usr/share/elasticsearch/logs
+    networks:
+      - game-agent-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  # 后端服务（开发时使用本地运行，不用Docker）
+  # backend:
+  #   build: ./game-agent-backend
+  #   container_name: game-agent-backend
+  #   ports:
+  #     - "8088:8088"
+  #   environment:
+  #     - SPRING_PROFILES_ACTIVE=dev
+  #   networks:
+  #     - game-agent-network
+  #   depends_on:
+  #     - elasticsearch
+
+volumes:
+  es-data:
+  es-logs:
+
+networks:
+  game-agent-network:
+    driver: bridge

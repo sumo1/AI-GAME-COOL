@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#667eea"/>
+      <stop offset="100%" stop-color="#764ba2"/>
+    </linearGradient>
+  </defs>
+  <!-- Game controller body -->
+  <path d="M10 40c0-10 6-18 16-18h12c10 0 16 8 16 18 0 6-3 9-7 9-4 0-7-3-9-6H26c-2 3-5 6-9 6-4 0-7-3-7-9z" fill="url(#g)" stroke="#2b2d42" stroke-width="2"/>
+  <!-- D-pad -->
+  <rect x="20" y="32" width="10" height="10" rx="2" fill="#2b2d42"/>
+  <rect x="23" y="29" width="4" height="16" rx="1.5" fill="#2b2d42"/>
+  <rect x="17" y="35" width="16" height="4" rx="1.5" fill="#2b2d42"/>
+  <!-- Buttons -->
+  <circle cx="44" cy="34" r="3" fill="#ffcc00" stroke="#2b2d42" stroke-width="1"/>
+  <circle cx="50" cy="40" r="3" fill="#ff6b6b" stroke="#2b2d42" stroke-width="1"/>
+  <!-- Indicators -->
+  <circle cx="30" cy="26" r="2" fill="#2b2d42"/>
+  <circle cx="34" cy="26" r="2" fill="#2b2d42"/>
+</svg>

@@ -1,0 +1,230 @@
+.app-layout {
+  height: 100vh;
+  overflow: hidden;
+}
+
+.app-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.header-subtitle {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 14px;
+}
+
+.main-content {
+  height: calc(100vh - 64px);
+  padding: 20px;
+  background: #f0f2f5;
+}
+
+.content-wrapper {
+  display: flex;
+  gap: 20px;
+  height: 100%;
+}
+
+.chat-section {
+  flex: 1;
+  min-width: 400px;
+}
+
+.preview-section {
+  flex: 2.2;
+  min-width: 600px;
+  /* 允许子元素在flex容器中正确收缩，避免高度溢出覆盖 */
+  min-height: 0;
+}
+
+/* Chat Interface Styles */
+.chat-container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.chat-container .ant-card-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  overflow: hidden;
+}
+
+.messages-list {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  margin-bottom: 16px;
+  padding-right: 8px;
+  max-height: calc(100vh - 320px);
+  scrollbar-width: thin;
+}
+
+.message-item {
+  margin-bottom: 16px;
+  border: none !important;
+}
+
+.message-item.user .message-content {
+  flex-direction: row-reverse;
+}
+
+.message-content {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.message-bubble {
+  max-width: 80%;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: white;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.message-item.user .message-bubble {
+  background: #5e72e4;
+  color: white;
+}
+
+.message-item.assistant .message-bubble {
+  background: #f6f8fa;
+}
+
+.generating-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  color: #666;
+}
+
+.suggested-prompts {
+  margin-bottom: 16px;
+}
+
+.prompts-label {
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+.prompts-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.prompt-chip {
+  font-size: 12px;
+  border-radius: 16px;
+}
+
+.input-area {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.input-area .ant-input-textarea {
+  flex: 1;
+}
+
+.send-button {
+  height: 40px;
+}
+
+/* Game Preview Styles */
+.preview-container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: transparent;
+}
+
+.preview-container .ant-card-body {
+  flex: 1;
+  padding: 0;
+  background: transparent;
+}
+
+.preview-section {
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+.preview-section > div {
+  height: 100%;
+}
+
+.game-preview-container {
+  height: calc(100vh - 104px);
+  background: transparent;
+  overflow: hidden;
+}
+
+.game-iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: white;
+}
+
+.game-data-view {
+  height: 600px;
+  overflow: auto;
+  background: #f6f8fa;
+  padding: 16px;
+  border-radius: 8px;
+}
+
+.game-data-view pre {
+  font-family: 'Monaco', 'Menlo', monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* Scrollbar Styles */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+  .content-wrapper {
+    flex-direction: column;
+  }
+  
+  .chat-section,
+  .preview-section {
+    min-width: auto;
+    width: 100%;
+  }
+}

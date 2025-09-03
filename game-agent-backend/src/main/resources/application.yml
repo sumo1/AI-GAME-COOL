@@ -1,0 +1,78 @@
+server:
+  port: ${SERVER_PORT:8088}
+
+# 代理配置（阿里云不需要代理）
+proxy:
+  enabled: false  # 阿里云百炼不需要代理
+  host: ${PROXY_HOST:127.0.0.1}
+  port: ${PROXY_PORT:8001}
+  type: ${PROXY_TYPE:http}
+
+spring:
+  application:
+    name: game-agent-backend
+  
+  # AI配置 - 使用阿里云百炼
+  ai:
+    # 阿里云百炼配置（通义千问）
+    dashscope:
+      api-key: ${ALIYUN_API_KEY}  # 请设置你的阿里云API key
+    
+    # OpenAI兼容模式（通过阿里云百炼）
+    openai:
+      api-key: ${DASHSCOPE_API_KEY:your-dashscope-key}
+      base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
+      chat:
+        options:
+          model: ${AI_MODEL:qwen-plus}  # 使用通义千问Plus
+          temperature: 0.7
+          max-tokens: 4000
+
+  
+  # Thymeleaf配置
+  thymeleaf:
+    prefix: classpath:/templates/
+    suffix: .html
+    mode: HTML
+    encoding: UTF-8
+    cache: false
+
+# Agent配置
+agent:
+  # 消息持久化配置（可选）
+  message:
+    persistence:
+      enabled: false
+  
+  # RAG配置（可选）
+  rag:
+    enabled: ${AGENT_RAG_ENABLED:true}  # 是否启用RAG
+    type: ${AGENT_RAG_TYPE:memory}   # 存储类型：memory（内存）, elasticsearch, embedded
+    # elasticsearch配置（仅当type=elasticsearch时需要）
+    elasticsearch:
+      host: ${ES_HOST:localhost}
+      port: ${ES_PORT:9200}
+  
+  # 游戏生成配置
+  game:
+    # 默认年龄组
+    default-age-group: 6-8
+    # 生成超时时间（秒）
+    generation-timeout: 30
+    # 模板路径
+    template-path: classpath:/game-templates/
+
+# 日志配置
+logging:
+  level:
+    com.sumo.agent: DEBUG
+    org.springframework.ai: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+
+# HTTP客户端超时（毫秒）
+# 摘要：DashScope 等大模型在生成超长 HTML 时可能超过 60 秒，这里将读取超时默认提高到 180 秒，避免读超时。
+http:
+  client:
+    connect-timeout-ms: 30000   # 连接超时：30s
+    read-timeout-ms: 180000     # 读取超时：180s（建议 120~240s 视实际情况调整）

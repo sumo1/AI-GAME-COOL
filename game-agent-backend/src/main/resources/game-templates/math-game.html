@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数学小英雄 - 儿童数学游戏</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Comic Sans MS', cursive, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .game-container {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 600px;
+            width: 90%;
+        }
+        
+        .game-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .game-title {
+            font-size: 2.5em;
+            color: #5e72e4;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .score-board {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 30px;
+        }
+        
+        .score-item {
+            text-align: center;
+            padding: 10px 20px;
+            background: #f0f3ff;
+            border-radius: 10px;
+        }
+        
+        .score-label {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        
+        .score-value {
+            font-size: 1.5em;
+            color: #5e72e4;
+            font-weight: bold;
+        }
+        
+        .question-container {
+            background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        
+        .question {
+            font-size: 2.5em;
+            color: #333;
+            margin-bottom: 20px;
+        }
+        
+        .options {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+        }
+        
+        .option-btn {
+            padding: 20px;
+            font-size: 1.5em;
+            background: white;
+            border: 3px solid #5e72e4;
+            border-radius: 15px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: bold;
+            color: #5e72e4;
+        }
+        
+        .option-btn:hover {
+            background: #5e72e4;
+            color: white;
+            transform: scale(1.05);
+        }
+        
+        .option-btn.correct {
+            background: #48bb78;
+            color: white;
+            border-color: #48bb78;
+            animation: correct 0.5s;
+        }
+        
+        .option-btn.wrong {
+            background: #f56565;
+            color: white;
+            border-color: #f56565;
+            animation: wrong 0.5s;
+        }
+        
+        @keyframes correct {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+        }
+        
+        @keyframes wrong {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            75% { transform: translateX(10px); }
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #e2e8f0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #48bb78, #38a169);
+            transition: width 0.3s;
+        }
+        
+        .celebration {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 5em;
+            animation: celebrate 1s;
+            pointer-events: none;
+        }
+        
+        @keyframes celebrate {
+            0% { transform: translate(-50%, -50%) scale(0) rotate(0deg); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(2) rotate(360deg); opacity: 0; }
+        }
+        
+        .control-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .control-btn {
+            padding: 10px 30px;
+            font-size: 1.2em;
+            background: #5e72e4;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .control-btn:hover {
+            background: #4c63d2;
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="game-header">
+            <h1 class="game-title">🎯 数学小英雄</h1>
+        </div>
+        
+        <div class="score-board">
+            <div class="score-item">
+                <div class="score-label">得分</div>
+                <div class="score-value" id="score">0</div>
+            </div>
+            <div class="score-item">
+                <div class="score-label">题目</div>
+                <div class="score-value"><span id="current">1</span>/<span id="total">10</span></div>
+            </div>
+            <div class="score-item">
+                <div class="score-label">正确率</div>
+                <div class="score-value" id="accuracy">0%</div>
+            </div>
+        </div>
+        
+        <div class="progress-bar">
+            <div class="progress-fill" id="progress" style="width: 10%"></div>
+        </div>
+        
+        <div class="question-container">
+            <div class="question" id="question">5 + 3 = ?</div>
+            <div class="options" id="options">
+                <button class="option-btn" onclick="checkAnswer(this, 8)">8</button>
+                <button class="option-btn" onclick="checkAnswer(this, 7)">7</button>
+                <button class="option-btn" onclick="checkAnswer(this, 9)">9</button>
+                <button class="option-btn" onclick="checkAnswer(this, 6)">6</button>
+            </div>
+        </div>
+        
+        <div class="control-buttons">
+            <button class="control-btn" onclick="resetGame()">🔄 重新开始</button>
+            <button class="control-btn" onclick="nextQuestion()">➡️ 下一题</button>
+        </div>
+    </div>
+    
+    <script>
+        // 游戏数据
+        let gameData = {
+            currentQuestion: 0,
+            score: 0,
+            correct: 0,
+            total: 10,
+            questions: [
+                { num1: 5, num2: 3, operator: '+', answer: 8, options: [8, 7, 9, 6] },
+                { num1: 9, num2: 4, operator: '-', answer: 5, options: [5, 4, 6, 3] },
+                { num1: 3, num2: 4, operator: '+', answer: 7, options: [7, 6, 8, 5] },
+                // 更多题目...
+            ]
+        };
+        
+        let answered = false;
+        
+        function checkAnswer(button, value) {
+            if (answered) return;
+            answered = true;
+            
+            const currentQ = gameData.questions[gameData.currentQuestion];
+            const correct = value === currentQ.answer;
+            
+            if (correct) {
+                button.classList.add('correct');
+                gameData.score += 10;
+                gameData.correct++;
+                showCelebration('✨');
+                playSound('correct');
+            } else {
+                button.classList.add('wrong');
+                // 显示正确答案
+                const buttons = document.querySelectorAll('.option-btn');
+                buttons.forEach(btn => {
+                    if (parseInt(btn.textContent) === currentQ.answer) {
+                        btn.classList.add('correct');
+                    }
+                });
+                playSound('wrong');
+            }
+            
+            updateScore();
+            
+            // 自动进入下一题
+            setTimeout(() => {
+                nextQuestion();
+            }, 1500);
+        }
+        
+        function nextQuestion() {
+            answered = false;
+            gameData.currentQuestion++;
+            
+            if (gameData.currentQuestion >= gameData.questions.length) {
+                showResult();
+                return;
+            }
+            
+            loadQuestion();
+        }
+        
+        function loadQuestion() {
+            const q = gameData.questions[gameData.currentQuestion];
+            document.getElementById('question').textContent = 
+                `${q.num1} ${q.operator} ${q.num2} = ?`;
+            
+            const optionsHtml = q.options.map(opt => 
+                `<button class="option-btn" onclick="checkAnswer(this, ${opt})">${opt}</button>`
+            ).join('');
+            
+            document.getElementById('options').innerHTML = optionsHtml;
+            
+            updateProgress();
+        }
+        
+        function updateScore() {
+            document.getElementById('score').textContent = gameData.score;
+            document.getElementById('current').textContent = gameData.currentQuestion + 1;
+            const accuracy = gameData.currentQuestion > 0 ? 
+                Math.round((gameData.correct / (gameData.currentQuestion + 1)) * 100) : 0;
+            document.getElementById('accuracy').textContent = accuracy + '%';
+        }
+        
+        function updateProgress() {
+            const progress = ((gameData.currentQuestion + 1) / gameData.total) * 100;
+            document.getElementById('progress').style.width = progress + '%';
+        }
+        
+        function resetGame() {
+            gameData.currentQuestion = 0;
+            gameData.score = 0;
+            gameData.correct = 0;
+            answered = false;
+            loadQuestion();
+            updateScore();
+        }
+        
+        function showCelebration(emoji) {
+            const celebration = document.createElement('div');
+            celebration.className = 'celebration';
+            celebration.textContent = emoji;
+            document.body.appendChild(celebration);
+            setTimeout(() => celebration.remove(), 1000);
+        }
+        
+        function showResult() {
+            const accuracy = Math.round((gameData.correct / gameData.total) * 100);
+            alert(`🎉 游戏结束！\n得分：${gameData.score}\n正确率：${accuracy}%`);
+        }
+        
+        function playSound(type) {
+            // 音效播放（需要添加音频文件）
+        }
+        
+        // 初始化游戏
+        window.onload = function() {
+            loadQuestion();
+            updateScore();
+        };
+    </script>
+</body>
+</html>

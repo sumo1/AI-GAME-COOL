@@ -1,0 +1,34 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: game-agent-backend
+  
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY}
+      base-url: ${OPENAI_BASE_URL}
+      model: ${AI_MODEL:gpt-3.5-turbo}
+  
+  thymeleaf:
+    prefix: classpath:/templates/
+    suffix: .html
+    mode: HTML
+    encoding: UTF-8
+    cache: false
+
+agent:
+  message:
+    persistence:
+      enabled: ${MESSAGE_PERSISTENCE_ENABLED:false}
+  
+  game:
+    default-age-group: 6-8
+    generation-timeout: 30
+    template-path: classpath:/game-templates/
+
+logging:
+  level:
+    com.sumo.agent: INFO
+    org.springframework.ai: INFO
