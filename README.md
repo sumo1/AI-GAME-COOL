@@ -14,7 +14,14 @@
 ![img.png](img.png)
 
 模型生成游戏
+
+一句话生成一个贪吃蛇游戏。
+
 ![img_1.png](img_1.png)
+
+做一个简单的英语单词拼写游戏
+
+![img_2.png](img_2.png)
 
 [![Java](https://img.shields.io/badge/Java-17+-red)](#)
 [![SpringBoot](https://img.shields.io/badge/Spring_Boot-3.x-6DB33F)](#)
@@ -57,16 +64,33 @@
 
 环境要求：Java 17+、Maven 3.6+、Node.js 18+（建议 20）；可选 Docker（Elasticsearch）。
 
-1) 启动（推荐）：
+### 🚀 超轻量一键启动（推荐）
+
 ```bash
-export ALIYUN_API_KEY=你的百炼Key  # 必填：后端从环境变量读取
+# 一键启动 - 自动检查环境、安装依赖、配置参数、启动服务
+./quick_start.sh
+
+# 带 API Key 启动（跳过交互）
+ALIYUN_API_KEY=你的百炼Key ./quick_start.sh
+```
+
+**特性**：
+- 🔍 自动环境检查与修复建议
+- 📦 自动安装依赖（Maven/npm）
+- 🔑 智能 API Key 配置（环境变量/.env/交互输入）
+- 🚀 并行启动前端后端，健康检查确保就绪
+- 🎨 彩色输出与进度提示
+- 🔄 Ctrl+C 优雅清理所有服务
+
+### 传统启动方式
+
+1) 使用 start.sh 脚本：
+```bash
+export ALIYUN_API_KEY=你的百炼Key
 ./start.sh
 ```
 
-- 前端：http://localhost:5173（Vite）
-- 后端：http://localhost:8088（可用 `SERVER_PORT` 覆盖）
-
-2) 手动模式：
+2) 手动启动：
 ```bash
 # 后端
 cd game-agent-backend
@@ -78,6 +102,11 @@ cd ../game-agent-frontend
 npm install && npm run dev            # 默认代理 http://localhost:8088
 BACKEND_URL=http://localhost:8090 npm run dev
 ```
+
+### 访问地址
+
+- 前端：http://localhost:5173（Vite）
+- 后端：http://localhost:8088（可用 `SERVER_PORT` 覆盖）
 
 ## 架构速览
 
