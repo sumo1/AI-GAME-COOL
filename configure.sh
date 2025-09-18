@@ -23,14 +23,14 @@ case $provider_choice in
   1)
     echo "配置OpenAI..."
     read -p "请输入OpenAI API Key: " api_key
-    echo "OPENAI_API_KEY=$api_key" > $ENV_FILE
+    echo "ALIYUN_API_KEY=$api_key" > $ENV_FILE
     echo "OPENAI_BASE_URL=https://api.openai.com" >> $ENV_FILE
     echo "AI_MODEL=gpt-3.5-turbo" >> $ENV_FILE
     ;;
   2)
     echo "配置阿里云通义千问..."
     read -p "请输入API Key: " api_key
-    echo "OPENAI_API_KEY=$api_key" > $ENV_FILE
+    echo "ALIYUN_API_KEY=$api_key" > $ENV_FILE
     echo "OPENAI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1" >> $ENV_FILE
     echo "AI_MODEL=qwen-plus" >> $ENV_FILE
     ;;
@@ -38,7 +38,7 @@ case $provider_choice in
     echo "配置Azure OpenAI..."
     read -p "请输入Azure API Key: " api_key
     read -p "请输入Azure Endpoint: " endpoint
-    echo "OPENAI_API_KEY=$api_key" > $ENV_FILE
+    echo "ALIYUN_API_KEY=$api_key" > $ENV_FILE
     echo "OPENAI_BASE_URL=$endpoint" >> $ENV_FILE
     echo "AI_MODEL=gpt-35-turbo" >> $ENV_FILE
     ;;
@@ -47,7 +47,7 @@ case $provider_choice in
     read -p "请输入API Key: " api_key
     read -p "请输入API Base URL: " base_url
     read -p "请输入模型名称: " model
-    echo "OPENAI_API_KEY=$api_key" > $ENV_FILE
+    echo "ALIYUN_API_KEY=$api_key" > $ENV_FILE
     echo "OPENAI_BASE_URL=$base_url" >> $ENV_FILE
     echo "AI_MODEL=$model" >> $ENV_FILE
     ;;
@@ -114,7 +114,7 @@ spring:
   
   ai:
     openai:
-      api-key: \${OPENAI_API_KEY}
+      api-key: \${ALIYUN_API_KEY}
       base-url: \${OPENAI_BASE_URL}
       model: \${AI_MODEL:gpt-3.5-turbo}
   

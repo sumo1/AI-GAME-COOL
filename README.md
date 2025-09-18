@@ -2,6 +2,12 @@
 
 用自然语言，一键生成可玩的儿童教育游戏。Java + React，插件化 Agent 架构，支持阿里云百炼（通义千问/Kimi/DeepSeek/Qwen3），可选 RAG，内置离线游戏模板。
 
+自带游戏
+![img.png](img.png)
+
+模型生成游戏
+![img_1.png](img_1.png)
+
 [![Java](https://img.shields.io/badge/Java-17+-red)](#)
 [![SpringBoot](https://img.shields.io/badge/Spring_Boot-3.x-6DB33F)](#)
 [![React](https://img.shields.io/badge/React-18-61DAFB)](#)
