@@ -11,7 +11,14 @@ proxy:
 spring:
   application:
     name: game-agent-backend
-  
+
+  # Jackson配置
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+
   # AI配置 - 使用阿里云百炼
   ai:
     # 阿里云百炼配置（通义千问）

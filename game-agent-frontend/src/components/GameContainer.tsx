@@ -5,18 +5,22 @@
  */
 import React, { useEffect, useRef, useState } from 'react'
 import { Card, message, Spin, Typography, Space, Tag, Button, Tooltip, Popover, Alert } from 'antd'
-import { 
-  ReloadOutlined, 
-  FullscreenOutlined, 
-  FullscreenExitOutlined, 
+import {
+  ReloadOutlined,
+  FullscreenOutlined,
+  FullscreenExitOutlined,
   PlayCircleOutlined,
   PauseCircleOutlined,
   SoundOutlined,
   CodeOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
-  ClockCircleOutlined
+  ClockCircleOutlined,
+  SaveOutlined,
+  HistoryOutlined
 } from '@ant-design/icons'
+import { gameStorage } from '../services/gameStorage'
+import { serverStorage } from '../services/serverStorage'
 import './GameContainer.css'
 
 const { Title, Text } = Typography
@@ -118,132 +122,57 @@ const GameContainer: React.FC<GameContainerProps> = ({ gameData, onRestart }) =>
     return s
   }
 
-  // 注入游戏增强代码
+  // 注入游戏增强代码 - 最小化干扰
   const injectGameEnhancements = (html: string) => {
-    // 添加自适应和消息通信代码
+    // 只添加必要的viewport和消息通信
     const enhancements = `
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta charset="UTF-8">
       <script>
-        // 替换alert为自定义提示
+        // 简单的消息通信
         window.alert = function(msg) {
           window.parent.postMessage({
             type: 'game-alert',
             message: msg
           }, '*');
         };
-        
-        // 替换confirm为自定义确认
+
         window.confirm = function(msg) {
           window.parent.postMessage({
             type: 'game-confirm',
             message: msg
           }, '*');
-          return true; // 默认确认
+          return true;
         };
-        
-        // 发送游戏状态
-        function sendGameStatus(status, data) {
-          window.parent.postMessage({
-            type: 'game-status',
-            status: status,
-            data: data
-          }, '*');
-        }
-        
-        // 选择游戏根节点：优先常见选择器，其次选择 body 下面积最大的元素
-        function pickGameRoot() {
-          const prefer = document.querySelector('#game-container, .game-area, .game-root, .game, .stage');
-          if (prefer) return prefer;
-          const nodes = Array.from(document.body.querySelectorAll('*')) as HTMLElement[];
-          let best: HTMLElement | null = null;
-          let bestArea = 0;
-          for (const el of nodes) {
-            if (!el.offsetWidth || !el.offsetHeight) continue;
-            const style = getComputedStyle(el);
-            if (style.position === 'fixed' || el.tagName === 'SCRIPT' || el.tagName === 'STYLE') continue;
-            const area = el.offsetWidth * el.offsetHeight;
-            if (area > bestArea) { bestArea = area; best = el; }
-          }
-          return best || document.body.firstElementChild as HTMLElement | null;
-        }
 
-        // 自适应处理：尽量填满可视区域（不使用 transform，避免布局错位）
-        function handleResize() {
-          const root = pickGameRoot();
-          if (!root) return;
-          const vw = Math.max(320, Math.floor(window.innerWidth * 0.92));
-          const vh = Math.max(320, Math.floor(window.innerHeight * 0.88));
-
-          // 通用容器限制
-          root.style.maxWidth = vw + 'px';
-          root.style.maxHeight = vh + 'px';
-          root.style.margin = '0 auto';
-          root.style.display = 'block';
-          root.style.transform = '';
-          (root as any).style?.removeProperty?.('transform');
-
-          // 针对 Canvas 的等比缩放
-          const canvas = (root.tagName === 'CANVAS') ? root as HTMLCanvasElement : (document.querySelector('canvas') as HTMLCanvasElement | null);
-          if (canvas) {
-            try {
-              const cw = canvas.width || canvas.getAttribute('width') || 800;
-              const ch = canvas.height || canvas.getAttribute('height') || 600;
-              const ratio = Number(cw) / Number(ch);
-              const targetWidth = Math.min(vw, Math.round(vh * ratio));
-              const targetHeight = Math.round(Number(targetWidth) / ratio);
-              canvas.style.width = String(targetWidth) + 'px';
-              canvas.style.height = String(targetHeight) + 'px';
-              canvas.style.display = 'block';
-              canvas.style.margin = '0 auto';
-            } catch (e) { /* 忽略 */ }
-          } else {
-            // 非 canvas：尽量保持等比，避免高度溢出
-            const rw = root.scrollWidth || root.clientWidth || 800;
-            const rh = root.scrollHeight || root.clientHeight || 600;
-            const r = rw / (rh || 1);
-            const w = Math.min(vw, Math.round(vh * r));
-            root.style.width = w + 'px';
-          }
-        }
-        
-        window.addEventListener('resize', handleResize);
-        window.addEventListener('orientationchange', handleResize);
-        window.addEventListener('load', handleResize);
-        
-        // 监听得分变化
+        // 最小化的响应式处理
         document.addEventListener('DOMContentLoaded', function() {
-          // 尝试获取游戏分数元素
-          const observer = new MutationObserver(function() {
-            const scoreElement = document.querySelector('[class*="score"], [id*="score"]');
-            if (scoreElement) {
-              sendGameStatus('score-update', { score: scoreElement.textContent });
+          // 只在iOS设备上做基础调整
+          if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
+            document.body.style.margin = '0';
+            document.body.style.padding = '0';
+
+            // 如果有canvas，稍微调整大小
+            const canvas = document.querySelector('canvas');
+            if (canvas) {
+              canvas.style.maxWidth = '100%';
+              canvas.style.height = 'auto';
             }
-          });
-          observer.observe(document.body, { childList: true, subtree: true, characterData: true });
-          setTimeout(handleResize, 50);
-          const ro = new ResizeObserver(() => handleResize());
-          ro.observe(document.body);
+          }
         });
       </script>
       <style>
-        /* 避免全局覆盖 body 布局，仅做基础重置与背景 */
-        html, body {
+        /* 最小化样式 - 只做基础重置 */
+        body {
           margin: 0;
-          padding: 0;
-          min-height: 100vh;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          padding: 20px;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
-        
-        /* 将布局限制在游戏容器内 */
-        .game-area, #game-container, .container {
-          max-width: 100% !important;
-          max-height: 100vh !important;
-          margin: 0 auto !important;
-        }
-        
-        /* 响应式Canvas */
-        canvas {
-          max-width: 100% !important;
-          height: auto !important;
+
+        /* 确保游戏居中 */
+        .game-container, #game-container {
+          max-width: 800px;
+          margin: 0 auto;
         }
       </style>
     `
@@ -331,6 +260,50 @@ const GameContainer: React.FC<GameContainerProps> = ({ gameData, onRestart }) =>
     }
   }
 
+  // 保存游戏到本地存储
+  const handleSaveGame = () => {
+    if (!gameData?.html) {
+      message.warning('没有可保存的游戏')
+      return
+    }
+
+    try {
+      const gameId = gameStorage.saveGame(gameData)
+      message.success('游戏已保存到浏览器')
+
+      // 可选：保存成功后显示游戏ID或其他信息
+      console.log('保存的游戏ID:', gameId)
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '保存失败')
+    }
+  }
+
+  // 保存游戏到服务器
+  const handleSaveToServer = async () => {
+    if (!gameData?.html) {
+      message.warning('没有可保存的游戏')
+      return
+    }
+
+    const hide = message.loading('正在保存到服务器...', 0)
+
+    try {
+      const result = await serverStorage.saveGame(gameData)
+
+      hide()
+
+      if (result.success) {
+        message.success(result.message || '游戏已保存到服务器')
+        console.log('服务器保存的游戏ID:', result.gameId)
+      } else {
+        message.error(result.message || '保存到服务器失败')
+      }
+    } catch (error) {
+      hide()
+      message.error('保存到服务器失败')
+    }
+  }
+
   // 获取游戏信息
   const gameInfo = gameData?.gameData || {}
   const isAIGenerated = gameInfo.generated === true
@@ -386,14 +359,33 @@ const GameContainer: React.FC<GameContainerProps> = ({ gameData, onRestart }) =>
             </Tooltip>
             
             <Tooltip title={isFullscreen ? "退出全屏" : "全屏"}>
-              <Button 
+              <Button
                 icon={isFullscreen ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
                 onClick={toggleFullscreen}
               />
             </Tooltip>
-            
+
+            <Tooltip title="保存到浏览器">
+              <Button
+                icon={<SaveOutlined />}
+                onClick={handleSaveGame}
+                type="default"
+              />
+            </Tooltip>
+
+            <Tooltip title="保存到服务器">
+              <Button
+                icon={<SaveOutlined />}
+                onClick={handleSaveToServer}
+                type="primary"
+                style={{ background: '#52c41a', borderColor: '#52c41a' }}
+              >
+                服务器
+              </Button>
+            </Tooltip>
+
             <Tooltip title="导出HTML">
-              <Button 
+              <Button
                 icon={<CodeOutlined />}
                 onClick={handleExport}
                 type="primary"
@@ -449,8 +441,9 @@ const GameContainer: React.FC<GameContainerProps> = ({ gameData, onRestart }) =>
                 ref={iframeRef}
                 className="game-iframe"
                 title="Game"
-                sandbox="allow-scripts allow-same-origin allow-forms"
-                style={{ 
+                sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-presentation allow-top-navigation-by-user-activation"
+                allow="accelerometer; gyroscope; autoplay"
+                style={{
                   display: isLoading ? 'none' : 'block'
                 }}
               />
