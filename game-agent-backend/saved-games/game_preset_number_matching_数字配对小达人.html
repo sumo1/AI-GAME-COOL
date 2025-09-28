@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>🔢 数字配对小达人</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+
+        body {
+            font-family: "Comic Sans MS", sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        #gameContainer {
+            width: 100%;
+            max-width: 800px;
+            padding: 20px;
+        }
+
+        #score {
+            text-align: center;
+            font-size: 24px;
+            color: white;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        #gameBoard {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            padding: 20px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 20px;
+        }
+
+        .card {
+            aspect-ratio: 1;
+            background: white;
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 48px;
+            cursor: pointer;
+            transition: transform 0.3s, background 0.3s;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+
+        .card:active {
+            transform: scale(0.95);
+        }
+
+        .card.flipped {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+
+        .card.matched {
+            background: #4ade80;
+            animation: celebrate 0.5s ease;
+            pointer-events: none;
+        }
+
+        @keyframes celebrate {
+            0%, 100% { transform: scale(1) rotate(0deg); }
+            50% { transform: scale(1.2) rotate(10deg); }
+        }
+
+        #message {
+            text-align: center;
+            font-size: 32px;
+            color: white;
+            margin-top: 20px;
+            min-height: 50px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        #startScreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            z-index: 1000;
+        }
+
+        #startScreen h1 {
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+
+        #startBtn {
+            padding: 20px 50px;
+            font-size: 28px;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        #startBtn:active {
+            transform: scale(0.95);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <div id="startScreen">
+        <h1>🔢 数字配对小达人 🔢</h1>
+        <p style="font-size: 24px; margin: 20px;">找出相同的数字配对吧！</p>
+        <button id="startBtn">开始游戏 🎯</button>
+    </div>
+
+    <div id="gameContainer">
+        <div id="score">得分: <span id="scoreValue">0</span> | 配对: <span id="pairsFound">0</span>/8</div>
+        <div id="gameBoard"></div>
+        <div id="message"></div>
+    </div>
+
+    <script>
+        const numbers = [1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8];
+        const emojis = ['🐸', '🐶', '🐱', '🦊', '🐻', '🐼', '🐨', '🐯'];
+        let cards = [];
+        let flippedCards = [];
+        let score = 0;
+        let pairsFound = 0;
+        let canFlip = true;
+
+        function shuffle(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        function initGame() {
+            const gameBoard = document.getElementById('gameBoard');
+            gameBoard.innerHTML = '';
+            cards = [];
+            flippedCards = [];
+            score = 0;
+            pairsFound = 0;
+            updateScore();
+
+            const shuffledNumbers = shuffle([...numbers]);
+
+            shuffledNumbers.forEach((number, index) => {
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.dataset.number = number;
+                card.dataset.index = index;
+                card.innerHTML = '?';
+
+                card.addEventListener('click', () => flipCard(card));
+                gameBoard.appendChild(card);
+                cards.push(card);
+            });
+        }
+
+        function flipCard(card) {
+            if (!canFlip || card.classList.contains('flipped') || card.classList.contains('matched')) {
+                return;
+            }
+
+            card.classList.add('flipped');
+            const number = card.dataset.number;
+            card.innerHTML = number + '<br>' + emojis[number - 1];
+            flippedCards.push(card);
+
+            if (flippedCards.length === 2) {
+                canFlip = false;
+                checkMatch();
+            }
+        }
+
+        function checkMatch() {
+            const [card1, card2] = flippedCards;
+
+            if (card1.dataset.number === card2.dataset.number) {
+                setTimeout(() => {
+                    card1.classList.add('matched');
+                    card2.classList.add('matched');
+                    score += 10;
+                    pairsFound++;
+                    updateScore();
+                    showMessage('太棒了! +10分 🎉');
+
+                    if (pairsFound === 8) {
+                        showMessage('🏆 恭喜完成！总分: ' + score);
+                        setTimeout(() => {
+                            if (confirm('太厉害了！要再玩一次吗？')) {
+                                initGame();
+                            }
+                        }, 2000);
+                    }
+
+                    flippedCards = [];
+                    canFlip = true;
+                }, 1000);
+            } else {
+                setTimeout(() => {
+                    card1.classList.remove('flipped');
+                    card2.classList.remove('flipped');
+                    card1.innerHTML = '?';
+                    card2.innerHTML = '?';
+                    flippedCards = [];
+                    canFlip = true;
+                    showMessage('再试一次！');
+                }, 1500);
+            }
+        }
+
+        function updateScore() {
+            document.getElementById('scoreValue').textContent = score;
+            document.getElementById('pairsFound').textContent = pairsFound;
+        }
+
+        function showMessage(text) {
+            const messageEl = document.getElementById('message');
+            messageEl.textContent = text;
+            setTimeout(() => {
+                messageEl.textContent = '';
+            }, 2000);
+        }
+
+        document.getElementById('startBtn').addEventListener('click', () => {
+            document.getElementById('startScreen').classList.add('hidden');
+            initGame();
+        });
+    </script>
+</body>
+</html>

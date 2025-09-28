@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>🎯 图案记忆大师</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+        body { font-family: sans-serif; background: linear-gradient(135deg, #fa709a, #fee140); display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        #game { text-align: center; padding: 20px; }
+        #score { font-size: 28px; color: white; margin: 20px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
+        #grid { display: inline-grid; grid-template-columns: repeat(3, 100px); gap: 10px; margin: 20px; padding: 20px; background: rgba(255,255,255,0.3); border-radius: 20px; }
+        .cell { width: 100px; height: 100px; background: white; border-radius: 10px; cursor: pointer; transition: all 0.3s; }
+        .cell.active { background: #4ade80; transform: scale(0.95); }
+        .cell.show { background: #ffd43b; }
+        #startBtn { padding: 15px 40px; font-size: 24px; background: white; border: none; border-radius: 30px; cursor: pointer; margin: 20px; }
+        #level { font-size: 24px; color: white; margin: 10px; }
+    </style>
+</head>
+<body>
+    <div id="game">
+        <div id="score">得分: <span id="scoreVal">0</span></div>
+        <div id="level">关卡: <span id="levelVal">1</span></div>
+        <div id="message" style="color:white;font-size:20px;margin:10px;min-height:30px;"></div>
+        <div id="grid"></div>
+        <button id="startBtn">开始游戏</button>
+    </div>
+    <script>
+        let score = 0, level = 1, pattern = [], playerPattern = [], showing = false, playing = false;
+
+        function initGrid() {
+            const grid = document.getElementById('grid');
+            grid.innerHTML = '';
+            for(let i = 0; i < 9; i++) {
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+                cell.dataset.idx = i;
+                cell.onclick = () => {
+                    if(!playing || showing) return;
+                    cell.classList.add('active');
+                    setTimeout(() => cell.classList.remove('active'), 300);
+                    playerPattern.push(i);
+
+                    if(playerPattern.length === pattern.length) {
+                        if(JSON.stringify(playerPattern) === JSON.stringify(pattern)) {
+                            score += level * 10;
+                            document.getElementById('scoreVal').textContent = score;
+                            document.getElementById('message').textContent = '正确! 进入下一关';
+                            level++;
+                            document.getElementById('levelVal').textContent = level;
+                            setTimeout(startLevel, 1500);
+                        } else {
+                            document.getElementById('message').textContent = '错误! 再试一次';
+                            setTimeout(showPattern, 1000);
+                        }
+                    }
+                };
+                grid.appendChild(cell);
+            }
+        }
+
+        function showPattern() {
+            showing = true;
+            playing = false;
+            document.getElementById('message').textContent = '记住这个图案!';
+            const cells = document.querySelectorAll('.cell');
+            
+            pattern.forEach((idx, i) => {
+                setTimeout(() => {
+                    cells[idx].classList.add('show');
+                    setTimeout(() => cells[idx].classList.remove('show'), 500);
+                }, i * 600);
+            });
+
+            setTimeout(() => {
+                showing = false;
+                playing = true;
+                playerPattern = [];
+                document.getElementById('message').textContent = '请重复图案';
+            }, pattern.length * 600 + 500);
+        }
+
+        function startLevel() {
+            pattern = [];
+            for(let i = 0; i < level + 2; i++) {
+                pattern.push(Math.floor(Math.random() * 9));
+            }
+            showPattern();
+        }
+
+        document.getElementById('startBtn').onclick = () => {
+            score = 0;
+            level = 1;
+            document.getElementById('scoreVal').textContent = score;
+            document.getElementById('levelVal').textContent = level;
+            initGrid();
+            startLevel();
+        };
+
+        initGrid();
+    </script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "id" : "game_preset_english_learning",
+  "title" : "快乐学英语-动物世界",
+  "type" : "ENGLISH_LEARNING",
+  "ageGroup" : "6岁",
+  "difficulty" : "简单",
+  "theme" : "动物世界",
+  "config" : "{\"gameType\":\"ENGLISH_LEARNING\",\"ageGroup\":\"6岁\",\"difficulty\":\"EASY\",\"theme\":\"animals\",\"title\":\"快乐学英语-动物世界\",\"timerEnabled\":false,\"soundEnabled\":true,\"duration\":10,\"scoreEnabled\":true}",
+  "fileName" : "game_preset_english_learning_快乐学英语-动物世界.html",
+  "fileSize" : 28964,
+  "createdAt" : "2025-09-27 14:51:00",
+  "updatedAt" : "2025-09-27 14:51:00"
+}

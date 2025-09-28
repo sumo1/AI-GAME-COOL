@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>🎵 节奏小达人</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+        body { font-family: sans-serif; background: linear-gradient(135deg, #a8edea, #fed6e3); display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        #game { text-align: center; padding: 20px; }
+        #score { font-size: 28px; color: #333; margin: 20px; }
+        .drum { display: inline-block; width: 120px; height: 120px; margin: 10px; background: white; border-radius: 50%; cursor: pointer; font-size: 60px; line-height: 120px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); transition: all 0.1s; }
+        .drum:active, .drum.hit { transform: scale(0.9); background: #ffd43b; }
+        #pattern { margin: 20px; font-size: 60px; min-height: 80px; }
+        #startBtn { padding: 15px 40px; font-size: 24px; background: #4ade80; color: white; border: none; border-radius: 30px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div id="game">
+        <div id="score">得分: <span id="scoreVal">0</span></div>
+        <div id="pattern"></div>
+        <div id="drums">
+            <div class="drum" data-sound="1">🥁</div>
+            <div class="drum" data-sound="2">🎹</div>
+            <div class="drum" data-sound="3">🎸</div>
+            <div class="drum" data-sound="4">🎺</div>
+        </div>
+        <button id="startBtn">开始</button>
+    </div>
+    <script>
+        let score = 0, pattern = [], playerPattern = [], playing = false;
+        const drums = document.querySelectorAll('.drum');
+        const icons = ['🥁','🎹','🎸','🎺'];
+
+        drums.forEach(drum => {
+            drum.onclick = () => {
+                if(!playing) return;
+                const sound = parseInt(drum.dataset.sound);
+                drum.classList.add('hit');
+                setTimeout(() => drum.classList.remove('hit'), 200);
+                playerPattern.push(sound);
+
+                if(playerPattern.length === pattern.length) {
+                    if(JSON.stringify(playerPattern) === JSON.stringify(pattern)) {
+                        score += pattern.length * 10;
+                        document.getElementById('scoreVal').textContent = score;
+                        setTimeout(() => nextLevel(), 1000);
+                    } else {
+                        document.getElementById('pattern').textContent = '❌ 再试一次！';
+                        playerPattern = [];
+                    }
+                }
+            };
+        });
+
+        function playPattern() {
+            playing = false;
+            pattern.push(Math.floor(Math.random() * 4) + 1);
+            document.getElementById('pattern').innerHTML = pattern.map(p => icons[p-1]).join(' ');
+
+            pattern.forEach((p, i) => {
+                setTimeout(() => {
+                    drums[p-1].classList.add('hit');
+                    setTimeout(() => drums[p-1].classList.remove('hit'), 300);
+                }, i * 600);
+            });
+
+            setTimeout(() => {
+                playing = true;
+                playerPattern = [];
+                document.getElementById('pattern').textContent = '你的回合！';
+            }, pattern.length * 600);
+        }
+
+        function nextLevel() {
+            playPattern();
+        }
+
+        document.getElementById('startBtn').onclick = () => {
+            pattern = [];
+            score = 0;
+            playPattern();
+            document.getElementById('startBtn').textContent = '重新开始';
+        };
+    </script>
+</body>
+</html>

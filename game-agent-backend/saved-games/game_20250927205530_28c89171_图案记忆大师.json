@@ -1,0 +1,14 @@
+{
+  "id" : "game_20250927205530_28c89171",
+  "title" : "图案记忆大师",
+  "type" : "MEMORY",
+  "ageGroup" : "6-8岁",
+  "difficulty" : "HARD",
+  "theme" : "patterns",
+  "html" : null,
+  "config" : "{\"gameType\":\"MEMORY\",\"ageGroup\":\"6-8岁\",\"difficulty\":\"HARD\",\"theme\":\"patterns\",\"title\":\"图案记忆大师\",\"timerEnabled\":false,\"soundEnabled\":true,\"duration\":10,\"scoreEnabled\":true}",
+  "createdAt" : "2025-09-27 20:55:30",
+  "updatedAt" : "2025-09-27 20:55:30",
+  "fileName" : "game_20250927205530_28c89171_图案记忆大师.html",
+  "fileSize" : 4580
+}

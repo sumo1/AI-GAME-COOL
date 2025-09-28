@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>🗺️ 迷宫探险家</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+        body { font-family: sans-serif; background: linear-gradient(135deg, #667eea, #764ba2); display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        #game { text-align: center; padding: 20px; }
+        #score { font-size: 24px; color: white; margin: 20px; }
+        #maze { display: inline-block; background: #333; padding: 5px; border-radius: 10px; }
+        .row { display: flex; }
+        .cell { width: 40px; height: 40px; background: #f0f0f0; margin: 1px; display: flex; align-items: center; justify-content: center; font-size: 24px; }
+        .wall { background: #333; }
+        .path { background: #fff; }
+        .player { background: #4ade80; }
+        .goal { background: #ffd43b; }
+        .control { display: inline-block; margin: 10px; padding: 15px 25px; background: white; border-radius: 10px; cursor: pointer; font-size: 30px; }
+        .control:active { transform: scale(0.95); }
+    </style>
+</head>
+<body>
+    <div id="game">
+        <div id="score">得分: <span id="scoreVal">0</span> | 步数: <span id="steps">0</span></div>
+        <div id="maze"></div>
+        <div id="controls">
+            <div class="control" onclick="move('up')">⬆️</div><br>
+            <div class="control" onclick="move('left')">⬅️</div>
+            <div class="control" onclick="move('right')">➡️</div><br>
+            <div class="control" onclick="move('down')">⬇️</div>
+        </div>
+    </div>
+    <script>
+        let score = 0, steps = 0, playerPos = {x: 1, y: 1};
+        const mazes = [
+            [
+                "###########",
+                "#P........#",
+                "#.###.###.#",
+                "#.#.....#.#",
+                "#.#.###.#.#",
+                "#.#...#.#.#",
+                "#.###.#.#.#",
+                "#.....#...#",
+                "#.#######.#",
+                "#.........G",
+                "###########"
+            ]
+        ];
+        let currentMaze = JSON.parse(JSON.stringify(mazes[0]));
+
+        function render() {
+            const mazeDiv = document.getElementById('maze');
+            mazeDiv.innerHTML = '';
+            currentMaze.forEach(row => {
+                const rowDiv = document.createElement('div');
+                rowDiv.className = 'row';
+                row.split('').forEach(cell => {
+                    const cellDiv = document.createElement('div');
+                    cellDiv.className = 'cell';
+                    if(cell === '#') cellDiv.className += ' wall';
+                    else if(cell === '.') cellDiv.className += ' path';
+                    else if(cell === 'P') {
+                        cellDiv.className += ' player';
+                        cellDiv.textContent = '🐭';
+                    }
+                    else if(cell === 'G') {
+                        cellDiv.className += ' goal';
+                        cellDiv.textContent = '🧀';
+                    }
+                    rowDiv.appendChild(cellDiv);
+                });
+                mazeDiv.appendChild(rowDiv);
+            });
+        }
+
+        function move(dir) {
+            let newX = playerPos.x, newY = playerPos.y;
+            if(dir === 'up') newY--;
+            else if(dir === 'down') newY++;
+            else if(dir === 'left') newX--;
+            else if(dir === 'right') newX++;
+
+            if(currentMaze[newY][newX] !== '#') {
+                const oldRow = currentMaze[playerPos.y].split('');
+                oldRow[playerPos.x] = '.';
+                currentMaze[playerPos.y] = oldRow.join('');
+
+                if(currentMaze[newY][newX] === 'G') {
+                    score += Math.max(100 - steps, 10);
+                    document.getElementById('scoreVal').textContent = score;
+                    alert('完成！得分: ' + score);
+                    steps = 0;
+                    playerPos = {x: 1, y: 1};
+                    currentMaze = JSON.parse(JSON.stringify(mazes[0]));
+                } else {
+                    const newRow = currentMaze[newY].split('');
+                    newRow[newX] = 'P';
+                    currentMaze[newY] = newRow.join('');
+                    playerPos = {x: newX, y: newY};
+                    steps++;
+                    document.getElementById('steps').textContent = steps;
+                }
+                render();
+            }
+        }
+
+        document.addEventListener('keydown', e => {
+            if(e.key === 'ArrowUp') move('up');
+            else if(e.key === 'ArrowDown') move('down');
+            else if(e.key === 'ArrowLeft') move('left');
+            else if(e.key === 'ArrowRight') move('right');
+        });
+
+        render();
+    </script>
+</body>
+</html>

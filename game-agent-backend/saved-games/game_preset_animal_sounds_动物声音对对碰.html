@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>🐾 动物声音对对碰</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+        body { font-family: sans-serif; background: linear-gradient(135deg, #f093fb, #f5576c); display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        #game { text-align: center; padding: 20px; }
+        #score { font-size: 28px; color: white; margin: 20px; }
+        .animal { display: inline-block; width: 100px; height: 100px; margin: 10px; background: white; border-radius: 20px; cursor: pointer; font-size: 60px; line-height: 100px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); transition: all 0.2s; }
+        .animal:active { transform: scale(0.95); }
+        .animal.selected { background: #ffd43b; transform: scale(1.1); }
+        #soundBtn { padding: 20px 40px; font-size: 60px; background: white; border-radius: 50%; cursor: pointer; margin: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+    </style>
+</head>
+<body>
+    <div id="game">
+        <div id="score">得分: <span id="scoreVal">0</span></div>
+        <div id="question" style="color:white;font-size:24px;margin:20px;">点击喇叭听声音，找出对应的动物！</div>
+        <div id="soundBtn">🔊</div>
+        <div id="animals"></div>
+    </div>
+    <script>
+        let score = 0, currentAnimal = 0;
+        const animals = [
+            {icon: '🐶', sound: '汪汪'},
+            {icon: '🐱', sound: '喵喵'},
+            {icon: '🐮', sound: '哞哞'},
+            {icon: '🐷', sound: '哼哼'},
+            {icon: '🐑', sound: '咩咩'},
+            {icon: '🐔', sound: '咯咯'}
+        ];
+
+        function newRound() {
+            currentAnimal = Math.floor(Math.random() * animals.length);
+            const options = [currentAnimal];
+            while(options.length < 4) {
+                const r = Math.floor(Math.random() * animals.length);
+                if(!options.includes(r)) options.push(r);
+            }
+            options.sort(() => Math.random() - 0.5);
+
+            const animalsDiv = document.getElementById('animals');
+            animalsDiv.innerHTML = '';
+            options.forEach(idx => {
+                const div = document.createElement('div');
+                div.className = 'animal';
+                div.textContent = animals[idx].icon;
+                div.onclick = () => {
+                    document.querySelectorAll('.animal').forEach(a => a.classList.remove('selected'));
+                    if(idx === currentAnimal) {
+                        score += 10;
+                        document.getElementById('scoreVal').textContent = score;
+                        div.style.background = '#4ade80';
+                        setTimeout(newRound, 1000);
+                    } else {
+                        div.style.background = '#ff6b6b';
+                        setTimeout(() => div.style.background = 'white', 500);
+                    }
+                };
+                animalsDiv.appendChild(div);
+            });
+        }
+
+        document.getElementById('soundBtn').onclick = () => {
+            document.getElementById('soundBtn').textContent = animals[currentAnimal].sound;
+            setTimeout(() => document.getElementById('soundBtn').textContent = '🔊', 1500);
+        };
+
+        newRound();
+    </script>
+</body>
+</html>

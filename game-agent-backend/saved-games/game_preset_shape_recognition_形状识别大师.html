@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>🔷 形状识别大师</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+
+        body {
+            font-family: "Comic Sans MS", sans-serif;
+            background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        #gameContainer {
+            width: 100%;
+            max-width: 800px;
+            padding: 20px;
+        }
+
+        #score {
+            text-align: center;
+            font-size: 28px;
+            color: white;
+            margin-bottom: 30px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        #targetShape {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        #targetShapeDisplay {
+            width: 150px;
+            height: 150px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #instruction {
+            font-size: 24px;
+            color: white;
+            text-align: center;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        #shapesGrid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            padding: 20px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 20px;
+        }
+
+        .shapeOption {
+            width: 100%;
+            aspect-ratio: 1;
+            background: white;
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: transform 0.2s;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+
+        .shapeOption:active {
+            transform: scale(0.95);
+        }
+
+        .shapeOption svg {
+            width: 80%;
+            height: 80%;
+        }
+
+        .correct {
+            animation: correct 0.6s ease;
+            background: #4ade80 !important;
+        }
+
+        .wrong {
+            animation: wrong 0.6s ease;
+            background: #ff6b6b !important;
+        }
+
+        @keyframes correct {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.2) rotate(360deg); }
+        }
+
+        @keyframes wrong {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            75% { transform: translateX(10px); }
+        }
+
+        #message {
+            text-align: center;
+            font-size: 28px;
+            color: white;
+            margin-top: 20px;
+            min-height: 40px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        #startScreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            z-index: 1000;
+        }
+
+        #startBtn {
+            padding: 20px 50px;
+            font-size: 28px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            margin-top: 20px;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <div id="startScreen">
+        <h1>🔷 形状识别大师 🔷</h1>
+        <p style="font-size: 24px; margin: 20px;">找出正确的形状吧！</p>
+        <button id="startBtn">开始游戏 🎯</button>
+    </div>
+
+    <div id="gameContainer">
+        <div id="score">得分: <span id="scoreValue">0</span> | 回合: <span id="round">1</span>/10</div>
+
+        <div id="targetShape">
+            <div id="targetShapeDisplay"></div>
+        </div>
+
+        <div id="instruction">找出这个形状：</div>
+
+        <div id="shapesGrid"></div>
+
+        <div id="message"></div>
+    </div>
+
+    <script>
+        let score = 0;
+        let round = 1;
+        let currentShape = '';
+        let canClick = true;
+
+        const shapes = [
+            { name: 'circle', chinese: '圆形', svg: '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#4dabf7"/></svg>' },
+            { name: 'square', chinese: '正方形', svg: '<svg viewBox="0 0 100 100"><rect x="10" y="10" width="80" height="80" fill="#fa5252"/></svg>' },
+            { name: 'triangle', chinese: '三角形', svg: '<svg viewBox="0 0 100 100"><polygon points="50,10 90,90 10,90" fill="#51cf66"/></svg>' },
+            { name: 'star', chinese: '星形', svg: '<svg viewBox="0 0 100 100"><polygon points="50,10 61,35 88,35 67,52 78,77 50,60 22,77 33,52 12,35 39,35" fill="#ffd43b"/></svg>' },
+            { name: 'heart', chinese: '心形', svg: '<svg viewBox="0 0 100 100"><path d="M50,25 C30,0 0,12.5 0,35 C0,50 50,90 50,90 C50,90 100,50 100,35 C100,12.5 70,0 50,25" fill="#ff6b6b"/></svg>' },
+            { name: 'hexagon', chinese: '六边形', svg: '<svg viewBox="0 0 100 100"><polygon points="30,10 70,10 90,50 70,90 30,90 10,50" fill="#a855f7"/></svg>' }
+        ];
+
+        function startNewRound() {
+            if (round > 10) {
+                gameComplete();
+                return;
+            }
+
+            canClick = true;
+            const targetIndex = Math.floor(Math.random() * shapes.length);
+            currentShape = shapes[targetIndex].name;
+
+            // 显示目标形状
+            document.getElementById('targetShapeDisplay').innerHTML = shapes[targetIndex].svg;
+            document.getElementById('instruction').textContent = `找出这个形状：${shapes[targetIndex].chinese}`;
+
+            // 创建选项
+            const grid = document.getElementById('shapesGrid');
+            grid.innerHTML = '';
+
+            // 随机选择形状（包含正确答案）
+            let options = [targetIndex];
+            while (options.length < 6) {
+                const randomIndex = Math.floor(Math.random() * shapes.length);
+                if (!options.includes(randomIndex)) {
+                    options.push(randomIndex);
+                }
+            }
+
+            // 打乱顺序
+            options.sort(() => Math.random() - 0.5);
+
+            options.forEach(index => {
+                const option = document.createElement('div');
+                option.className = 'shapeOption';
+                option.innerHTML = shapes[index].svg;
+                option.dataset.shape = shapes[index].name;
+
+                option.addEventListener('click', () => checkAnswer(option));
+                grid.appendChild(option);
+            });
+
+            document.getElementById('round').textContent = round;
+        }
+
+        function checkAnswer(element) {
+            if (!canClick) return;
+            canClick = false;
+
+            if (element.dataset.shape === currentShape) {
+                element.classList.add('correct');
+                score += 10;
+                updateScore();
+                showMessage('正确! +10分 🎉');
+
+                setTimeout(() => {
+                    round++;
+                    startNewRound();
+                }, 1500);
+            } else {
+                element.classList.add('wrong');
+                showMessage('再试一次！');
+
+                setTimeout(() => {
+                    element.classList.remove('wrong');
+                    canClick = true;
+                }, 1000);
+            }
+        }
+
+        function gameComplete() {
+            showMessage(`🏆 游戏完成！总分: ${score}`);
+            setTimeout(() => {
+                if (confirm('太棒了！要再玩一次吗？')) {
+                    score = 0;
+                    round = 1;
+                    updateScore();
+                    startNewRound();
+                }
+            }, 2000);
+        }
+
+        function updateScore() {
+            document.getElementById('scoreValue').textContent = score;
+        }
+
+        function showMessage(text) {
+            const messageEl = document.getElementById('message');
+            messageEl.textContent = text;
+            setTimeout(() => {
+                messageEl.textContent = '';
+            }, 2000);
+        }
+
+        document.getElementById('startBtn').addEventListener('click', () => {
+            document.getElementById('startScreen').classList.add('hidden');
+            startNewRound();
+        });
+    </script>
+</body>
+</html>

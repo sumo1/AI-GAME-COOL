@@ -1,0 +1,14 @@
+{
+  "id" : "game_20250927205416_053189f6",
+  "title" : "节奏小达人",
+  "type" : "MEMORY",
+  "ageGroup" : "5-7岁",
+  "difficulty" : "MEDIUM",
+  "theme" : "music",
+  "html" : null,
+  "config" : "{\"gameType\":\"MEMORY\",\"ageGroup\":\"5-7岁\",\"difficulty\":\"MEDIUM\",\"theme\":\"music\",\"title\":\"节奏小达人\",\"timerEnabled\":false,\"soundEnabled\":true,\"duration\":10,\"scoreEnabled\":true}",
+  "createdAt" : "2025-09-27 20:54:16",
+  "updatedAt" : "2025-09-27 20:54:16",
+  "fileName" : "game_20250927205416_053189f6_节奏小达人.html",
+  "fileSize" : 3743
+}

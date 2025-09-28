@@ -1,0 +1,13 @@
+{
+  "id" : "game_preset_traffic_safety",
+  "title" : "城市交通小卫士",
+  "type" : "TRAFFIC_SAFETY",
+  "ageGroup" : "6岁",
+  "difficulty" : "简单",
+  "theme" : "城市交通",
+  "config" : "{\"gameType\":\"TRAFFIC_SAFETY\",\"ageGroup\":\"6岁\",\"difficulty\":\"EASY\",\"theme\":\"city\",\"title\":\"城市交通小卫士\",\"timerEnabled\":false,\"soundEnabled\":true,\"duration\":10,\"scoreEnabled\":true}",
+  "fileName" : "game_preset_traffic_safety_城市交通小卫士.html",
+  "fileSize" : 20525,
+  "createdAt" : "2025-09-27 14:50:00",
+  "updatedAt" : "2025-09-27 14:50:00"
+}

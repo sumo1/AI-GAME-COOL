@@ -1,0 +1,13 @@
+{
+  "id" : "game_preset_number_matching",
+  "title" : "数字配对小达人",
+  "type" : "MEMORY",
+  "ageGroup" : "3-5岁",
+  "difficulty" : "简单",
+  "theme" : "数字学习",
+  "config" : "{\"gameType\":\"MEMORY\",\"ageGroup\":\"3-5岁\",\"difficulty\":\"EASY\",\"theme\":\"numbers\",\"title\":\"数字配对小达人\",\"timerEnabled\":false,\"soundEnabled\":true,\"duration\":10,\"scoreEnabled\":true}",
+  "fileName" : "game_preset_number_matching_数字配对小达人.html",
+  "fileSize" : 7245,
+  "createdAt" : "2025-09-27 17:22:00",
+  "updatedAt" : "2025-09-27 17:22:00"
+}

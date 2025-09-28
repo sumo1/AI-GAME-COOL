@@ -1,0 +1,13 @@
+{
+  "id" : "game_preset_color_sorting",
+  "title" : "颜色分类小能手",
+  "type" : "PUZZLE",
+  "ageGroup" : "4-6岁",
+  "difficulty" : "简单",
+  "theme" : "颜色学习",
+  "config" : "{\"gameType\":\"PUZZLE\",\"ageGroup\":\"4-6岁\",\"difficulty\":\"EASY\",\"theme\":\"colors\",\"title\":\"颜色分类小能手\",\"timerEnabled\":false,\"soundEnabled\":true,\"duration\":10,\"scoreEnabled\":true}",
+  "fileName" : "game_preset_color_sorting_颜色分类小能手.html",
+  "fileSize" : 9876,
+  "createdAt" : "2025-09-27 17:23:00",
+  "updatedAt" : "2025-09-27 17:23:00"
+}

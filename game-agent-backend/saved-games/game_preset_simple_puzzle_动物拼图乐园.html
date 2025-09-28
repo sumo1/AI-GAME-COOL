@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>🧩 动物拼图乐园</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+        body { font-family: "Comic Sans MS", sans-serif; background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        #gameContainer { width: 100%; max-width: 600px; padding: 20px; }
+        #score { text-align: center; font-size: 24px; color: #333; margin-bottom: 20px; }
+        #puzzleBoard { width: 300px; height: 300px; margin: 0 auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; background: #333; padding: 2px; border-radius: 10px; }
+        .piece { background: #87CEEB; cursor: pointer; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-size: 40px; transition: transform 0.3s; }
+        .piece:active { transform: scale(0.95); }
+        .empty { background: #f0f0f0; }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <div id="score">得分: <span id="scoreValue">0</span> | 移动: <span id="moves">0</span></div>
+        <div id="puzzleBoard"></div>
+    </div>
+    <script>
+        let board = [1,2,3,4,5,6,7,8,0];
+        let emptyPos = 8;
+        let moves = 0;
+        let score = 0;
+        const animals = ['🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼'];
+        
+        function shuffle() {
+            for(let i = 0; i < 50; i++) {
+                const neighbors = [];
+                if(emptyPos % 3 > 0) neighbors.push(emptyPos - 1);
+                if(emptyPos % 3 < 2) neighbors.push(emptyPos + 1);
+                if(emptyPos > 2) neighbors.push(emptyPos - 3);
+                if(emptyPos < 6) neighbors.push(emptyPos + 3);
+                const next = neighbors[Math.floor(Math.random() * neighbors.length)];
+                [board[emptyPos], board[next]] = [board[next], board[emptyPos]];
+                emptyPos = next;
+            }
+        }
+        
+        function render() {
+            const puzzleBoard = document.getElementById('puzzleBoard');
+            puzzleBoard.innerHTML = '';
+            board.forEach((num, idx) => {
+                const piece = document.createElement('div');
+                piece.className = num === 0 ? 'piece empty' : 'piece';
+                piece.textContent = num > 0 ? animals[num-1] : '';
+                piece.onclick = () => move(idx);
+                puzzleBoard.appendChild(piece);
+            });
+        }
+        
+        function move(pos) {
+            if(Math.abs(pos - emptyPos) === 1 && Math.floor(pos/3) === Math.floor(emptyPos/3) ||
+               Math.abs(pos - emptyPos) === 3) {
+                [board[pos], board[emptyPos]] = [board[emptyPos], board[pos]];
+                emptyPos = pos;
+                moves++;
+                document.getElementById('moves').textContent = moves;
+                render();
+                if(checkWin()) {
+                    score += Math.max(100 - moves, 10);
+                    document.getElementById('scoreValue').textContent = score;
+                    setTimeout(() => { alert('完成！得分: ' + score); shuffle(); moves = 0; render(); }, 100);
+                }
+            }
+        }
+        
+        function checkWin() {
+            for(let i = 0; i < 8; i++) if(board[i] !== i + 1) return false;
+            return board[8] === 0;
+        }
+        
+        shuffle();
+        render();
+    </script>
+</body>
+</html>

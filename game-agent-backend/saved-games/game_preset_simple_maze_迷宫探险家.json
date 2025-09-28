@@ -1,0 +1,13 @@
+{
+  "id" : "game_preset_simple_maze",
+  "title" : "迷宫探险家",
+  "type" : "PUZZLE",
+  "ageGroup" : "5-7岁",
+  "difficulty" : "中等",
+  "theme" : "迷宫探险",
+  "config" : "{\"gameType\":\"PUZZLE\",\"ageGroup\":\"5-7岁\",\"difficulty\":\"MEDIUM\",\"theme\":\"maze\",\"title\":\"迷宫探险家\",\"timerEnabled\":false,\"soundEnabled\":true,\"duration\":10,\"scoreEnabled\":true}",
+  "fileName" : "game_preset_simple_maze_迷宫探险家.html",
+  "fileSize" : 10234,
+  "createdAt" : "2025-09-27 17:30:00",
+  "updatedAt" : "2025-09-27 17:30:00"
+}

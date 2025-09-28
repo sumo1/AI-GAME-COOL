@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>⏰ 时间小管家</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+        body { font-family: sans-serif; background: linear-gradient(135deg, #667eea, #764ba2); display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        #game { text-align: center; padding: 20px; }
+        #clock { width: 300px; height: 300px; margin: 20px auto; position: relative; background: white; border-radius: 50%; border: 10px solid #333; }
+        .hand { position: absolute; background: #333; transform-origin: bottom; left: 50%; bottom: 50%; }
+        #hour { width: 6px; height: 80px; margin-left: -3px; }
+        #minute { width: 4px; height: 100px; margin-left: -2px; background: #666; }
+        .number { position: absolute; font-size: 24px; font-weight: bold; }
+        #score { font-size: 24px; color: white; margin: 20px; }
+        .option { display: inline-block; margin: 10px; padding: 15px 30px; background: white; border-radius: 10px; cursor: pointer; font-size: 20px; }
+        .option:active { transform: scale(0.95); }
+    </style>
+</head>
+<body>
+    <div id="game">
+        <div id="score">得分: <span id="scoreVal">0</span></div>
+        <div id="clock">
+            <div class="hand" id="hour"></div>
+            <div class="hand" id="minute"></div>
+            <div class="number" style="top:10px;left:140px;">12</div>
+            <div class="number" style="top:140px;right:10px;">3</div>
+            <div class="number" style="bottom:10px;left:145px;">6</div>
+            <div class="number" style="top:140px;left:10px;">9</div>
+        </div>
+        <div id="question" style="color:white;font-size:24px;margin:20px;">现在是几点？</div>
+        <div id="options"></div>
+    </div>
+    <script>
+        let score = 0;
+        function newQuestion() {
+            const h = Math.floor(Math.random() * 12);
+            const m = Math.floor(Math.random() * 4) * 15;
+            document.getElementById('hour').style.transform = 'rotate(' + (h * 30 + m * 0.5) + 'deg)';
+            document.getElementById('minute').style.transform = 'rotate(' + (m * 6) + 'deg)';
+            const correct = (h || 12) + ':' + (m || '00').toString().padStart(2, '0');
+            const options = [correct];
+            while(options.length < 4) {
+                const oh = Math.floor(Math.random() * 12);
+                const om = Math.floor(Math.random() * 4) * 15;
+                const opt = (oh || 12) + ':' + (om || '00').toString().padStart(2, '0');
+                if(!options.includes(opt)) options.push(opt);
+            }
+            options.sort(() => Math.random() - 0.5);
+            const optDiv = document.getElementById('options');
+            optDiv.innerHTML = '';
+            options.forEach(opt => {
+                const btn = document.createElement('div');
+                btn.className = 'option';
+                btn.textContent = opt;
+                btn.onclick = () => {
+                    if(opt === correct) {
+                        score += 10;
+                        document.getElementById('scoreVal').textContent = score;
+                        btn.style.background = '#4ade80';
+                        setTimeout(newQuestion, 1000);
+                    } else {
+                        btn.style.background = '#ff6b6b';
+                    }
+                };
+                optDiv.appendChild(btn);
+            });
+        }
+        newQuestion();
+    </script>
+</body>
+</html>

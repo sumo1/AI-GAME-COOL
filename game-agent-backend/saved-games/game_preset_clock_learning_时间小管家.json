@@ -1,0 +1,13 @@
+{
+  "id" : "game_preset_clock_learning",
+  "title" : "时间小管家",
+  "type" : "MATH",
+  "ageGroup" : "6-8岁",
+  "difficulty" : "中等",
+  "theme" : "时间学习",
+  "config" : "{\"gameType\":\"MATH\",\"ageGroup\":\"6-8岁\",\"difficulty\":\"MEDIUM\",\"theme\":\"time\",\"title\":\"时间小管家\",\"timerEnabled\":false,\"soundEnabled\":true,\"duration\":10,\"scoreEnabled\":true}",
+  "fileName" : "game_preset_clock_learning_时间小管家.html",
+  "fileSize" : 9156,
+  "createdAt" : "2025-09-27 17:26:00",
+  "updatedAt" : "2025-09-27 17:26:00"
+}

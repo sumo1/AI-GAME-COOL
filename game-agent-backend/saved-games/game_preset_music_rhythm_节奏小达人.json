@@ -1,0 +1,13 @@
+{
+  "id" : "game_preset_music_rhythm",
+  "title" : "节奏小达人",
+  "type" : "MEMORY",
+  "ageGroup" : "5-7岁",
+  "difficulty" : "中等",
+  "theme" : "音乐节奏",
+  "config" : "{\"gameType\":\"MEMORY\",\"ageGroup\":\"5-7岁\",\"difficulty\":\"MEDIUM\",\"theme\":\"music\",\"title\":\"节奏小达人\",\"timerEnabled\":false,\"soundEnabled\":true,\"duration\":10,\"scoreEnabled\":true}",
+  "fileName" : "game_preset_music_rhythm_节奏小达人.html",
+  "fileSize" : 8901,
+  "createdAt" : "2025-09-27 17:28:00",
+  "updatedAt" : "2025-09-27 17:28:00"
+}

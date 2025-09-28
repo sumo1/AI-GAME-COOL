@@ -1,0 +1,13 @@
+{
+  "id" : "game_preset_fruit_counting",
+  "title" : "水果数数乐",
+  "type" : "MATH",
+  "ageGroup" : "4-6岁",
+  "difficulty" : "简单",
+  "theme" : "数字学习",
+  "config" : "{\"gameType\":\"MATH\",\"ageGroup\":\"4-6岁\",\"difficulty\":\"EASY\",\"theme\":\"fruits\",\"title\":\"水果数数乐\",\"timerEnabled\":false,\"soundEnabled\":true,\"duration\":10,\"scoreEnabled\":true}",
+  "fileName" : "game_preset_fruit_counting_水果数数乐.html",
+  "fileSize" : 6789,
+  "createdAt" : "2025-09-27 17:27:00",
+  "updatedAt" : "2025-09-27 17:27:00"
+}

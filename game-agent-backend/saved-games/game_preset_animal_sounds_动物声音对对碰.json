@@ -1,0 +1,13 @@
+{
+  "id" : "game_preset_animal_sounds",
+  "title" : "动物声音对对碰",
+  "type" : "MEMORY",
+  "ageGroup" : "3-5岁",
+  "difficulty" : "简单",
+  "theme" : "动物声音",
+  "config" : "{\"gameType\":\"MEMORY\",\"ageGroup\":\"3-5岁\",\"difficulty\":\"EASY\",\"theme\":\"animals\",\"title\":\"动物声音对对碰\",\"timerEnabled\":false,\"soundEnabled\":true,\"duration\":10,\"scoreEnabled\":true}",
+  "fileName" : "game_preset_animal_sounds_动物声音对对碰.html",
+  "fileSize" : 7456,
+  "createdAt" : "2025-09-27 17:29:00",
+  "updatedAt" : "2025-09-27 17:29:00"
+}

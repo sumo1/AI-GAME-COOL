@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>🎨 颜色分类小能手</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+
+        body {
+            font-family: "Comic Sans MS", sans-serif;
+            background: linear-gradient(135deg, #89f7fe 0%, #66a6ff 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        #gameContainer {
+            width: 100%;
+            max-width: 900px;
+            padding: 20px;
+        }
+
+        #score {
+            text-align: center;
+            font-size: 28px;
+            color: white;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        #itemsArea {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 30px;
+            min-height: 150px;
+            padding: 20px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 20px;
+        }
+
+        .item {
+            width: 80px;
+            height: 80px;
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            cursor: grab;
+            transition: transform 0.2s;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+
+        .item:active {
+            cursor: grabbing;
+            transform: scale(1.1);
+        }
+
+        .item.dragging {
+            opacity: 0.5;
+        }
+
+        #boxesArea {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+
+        .colorBox {
+            height: 200px;
+            border-radius: 20px;
+            border: 5px solid rgba(255,255,255,0.5);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s, box-shadow 0.2s;
+            position: relative;
+        }
+
+        .colorBox.dragover {
+            transform: scale(1.05);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+        }
+
+        .boxLabel {
+            position: absolute;
+            top: 10px;
+            color: white;
+            font-size: 20px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+
+        .boxContent {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            padding: 40px 10px 10px 10px;
+        }
+
+        #message {
+            text-align: center;
+            font-size: 28px;
+            color: white;
+            margin-top: 20px;
+            min-height: 40px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        #startScreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            z-index: 1000;
+        }
+
+        #startBtn, #nextLevelBtn {
+            padding: 20px 50px;
+            font-size: 28px;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            margin-top: 20px;
+        }
+
+        #startBtn:active, #nextLevelBtn:active {
+            transform: scale(0.95);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        @keyframes correct {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.2) rotate(10deg); }
+            100% { transform: scale(1); }
+        }
+
+        .correct {
+            animation: correct 0.5s ease;
+        }
+    </style>
+</head>
+<body>
+    <div id="startScreen">
+        <h1>🎨 颜色分类小能手 🎨</h1>
+        <p style="font-size: 24px; margin: 20px;">把物品放到对应颜色的箱子里！</p>
+        <button id="startBtn">开始游戏 🎯</button>
+    </div>
+
+    <div id="gameContainer">
+        <div id="score">得分: <span id="scoreValue">0</span> | 关卡: <span id="level">1</span></div>
+
+        <div id="itemsArea"></div>
+
+        <div id="boxesArea"></div>
+
+        <div id="message"></div>
+
+        <button id="nextLevelBtn" class="hidden">下一关 ➡️</button>
+    </div>
+
+    <script>
+        let score = 0;
+        let level = 1;
+        let currentItems = [];
+        let correctPlacements = 0;
+        let totalItems = 0;
+
+        const levels = [
+            {
+                colors: ['red', 'blue'],
+                items: [
+                    {emoji: '🍎', color: 'red'},
+                    {emoji: '🌊', color: 'blue'},
+                    {emoji: '🍓', color: 'red'},
+                    {emoji: '🐟', color: 'blue'},
+                    {emoji: '🌹', color: 'red'},
+                    {emoji: '🦋', color: 'blue'}
+                ]
+            },
+            {
+                colors: ['red', 'blue', 'yellow'],
+                items: [
+                    {emoji: '🍎', color: 'red'},
+                    {emoji: '🌊', color: 'blue'},
+                    {emoji: '🌻', color: 'yellow'},
+                    {emoji: '🍓', color: 'red'},
+                    {emoji: '🐟', color: 'blue'},
+                    {emoji: '🌟', color: 'yellow'},
+                    {emoji: '🦀', color: 'red'},
+                    {emoji: '🍌', color: 'yellow'}
+                ]
+            },
+            {
+                colors: ['red', 'blue', 'yellow', 'green'],
+                items: [
+                    {emoji: '🍎', color: 'red'},
+                    {emoji: '🌊', color: 'blue'},
+                    {emoji: '🌻', color: 'yellow'},
+                    {emoji: '🌳', color: 'green'},
+                    {emoji: '🍓', color: 'red'},
+                    {emoji: '🐟', color: 'blue'},
+                    {emoji: '🌟', color: 'yellow'},
+                    {emoji: '🐸', color: 'green'},
+                    {emoji: '🥒', color: 'green'},
+                    {emoji: '🍋', color: 'yellow'}
+                ]
+            }
+        ];
+
+        const colorNames = {
+            'red': '红色',
+            'blue': '蓝色',
+            'yellow': '黄色',
+            'green': '绿色'
+        };
+
+        const colorHex = {
+            'red': '#ff6b6b',
+            'blue': '#4dabf7',
+            'yellow': '#ffd43b',
+            'green': '#51cf66'
+        };
+
+        function initLevel() {
+            const levelData = levels[Math.min(level - 1, levels.length - 1)];
+            currentItems = [...levelData.items];
+            correctPlacements = 0;
+            totalItems = currentItems.length;
+
+            // 清空并创建物品
+            const itemsArea = document.getElementById('itemsArea');
+            itemsArea.innerHTML = '';
+
+            currentItems.forEach((item, index) => {
+                const itemEl = document.createElement('div');
+                itemEl.className = 'item';
+                itemEl.style.background = colorHex[item.color];
+                itemEl.innerHTML = item.emoji;
+                itemEl.draggable = true;
+                itemEl.dataset.color = item.color;
+                itemEl.dataset.id = index;
+
+                itemEl.addEventListener('dragstart', handleDragStart);
+                itemEl.addEventListener('dragend', handleDragEnd);
+                itemEl.addEventListener('touchstart', handleTouchStart, {passive: false});
+
+                itemsArea.appendChild(itemEl);
+            });
+
+            // 创建颜色箱子
+            const boxesArea = document.getElementById('boxesArea');
+            boxesArea.innerHTML = '';
+
+            levelData.colors.forEach(color => {
+                const box = document.createElement('div');
+                box.className = 'colorBox';
+                box.style.background = colorHex[color];
+                box.dataset.color = color;
+
+                const label = document.createElement('div');
+                label.className = 'boxLabel';
+                label.textContent = colorNames[color];
+                box.appendChild(label);
+
+                const content = document.createElement('div');
+                content.className = 'boxContent';
+                box.appendChild(content);
+
+                box.addEventListener('dragover', handleDragOver);
+                box.addEventListener('drop', handleDrop);
+                box.addEventListener('dragleave', handleDragLeave);
+
+                boxesArea.appendChild(box);
+            });
+
+            document.getElementById('level').textContent = level;
+            showMessage(`第${level}关开始！`);
+        }
+
+        let draggedElement = null;
+
+        function handleDragStart(e) {
+            draggedElement = e.target;
+            e.target.classList.add('dragging');
+        }
+
+        function handleDragEnd(e) {
+            e.target.classList.remove('dragging');
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.currentTarget.classList.add('dragover');
+        }
+
+        function handleDragLeave(e) {
+            e.currentTarget.classList.remove('dragover');
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            e.currentTarget.classList.remove('dragover');
+
+            if (draggedElement) {
+                const boxColor = e.currentTarget.dataset.color;
+                const itemColor = draggedElement.dataset.color;
+
+                if (boxColor === itemColor) {
+                    e.currentTarget.querySelector('.boxContent').appendChild(draggedElement);
+                    draggedElement.draggable = false;
+                    draggedElement.classList.add('correct');
+
+                    score += 10;
+                    correctPlacements++;
+                    updateScore();
+                    showMessage('正确! +10分 ✨');
+
+                    if (correctPlacements === totalItems) {
+                        levelComplete();
+                    }
+                } else {
+                    showMessage('再想想，这个颜色不对哦！');
+                    draggedElement.classList.remove('dragging');
+                }
+
+                draggedElement = null;
+            }
+        }
+
+        // 触摸事件支持
+        function handleTouchStart(e) {
+            e.preventDefault();
+            const touch = e.touches[0];
+            draggedElement = e.target;
+
+            const moveHandler = (e) => {
+                e.preventDefault();
+                const touch = e.touches[0];
+                const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+
+                if (elementBelow && elementBelow.classList.contains('colorBox')) {
+                    elementBelow.classList.add('dragover');
+                } else {
+                    document.querySelectorAll('.colorBox').forEach(box => {
+                        box.classList.remove('dragover');
+                    });
+                }
+            };
+
+            const endHandler = (e) => {
+                e.preventDefault();
+                const touch = e.changedTouches[0];
+                const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+
+                if (elementBelow && elementBelow.classList.contains('colorBox')) {
+                    const boxColor = elementBelow.dataset.color;
+                    const itemColor = draggedElement.dataset.color;
+
+                    if (boxColor === itemColor) {
+                        elementBelow.querySelector('.boxContent').appendChild(draggedElement);
+                        draggedElement.classList.add('correct');
+
+                        score += 10;
+                        correctPlacements++;
+                        updateScore();
+                        showMessage('正确! +10分 ✨');
+
+                        if (correctPlacements === totalItems) {
+                            levelComplete();
+                        }
+                    } else {
+                        showMessage('再想想，这个颜色不对哦！');
+                    }
+                }
+
+                document.querySelectorAll('.colorBox').forEach(box => {
+                    box.classList.remove('dragover');
+                });
+
+                document.removeEventListener('touchmove', moveHandler);
+                document.removeEventListener('touchend', endHandler);
+            };
+
+            document.addEventListener('touchmove', moveHandler, {passive: false});
+            document.addEventListener('touchend', endHandler, {passive: false});
+        }
+
+        function levelComplete() {
+            showMessage(`🎉 第${level}关完成！太棒了！`);
+            if (level < levels.length) {
+                document.getElementById('nextLevelBtn').classList.remove('hidden');
+            } else {
+                setTimeout(() => {
+                    showMessage(`🏆 恭喜通关！总分: ${score}`);
+                    if (confirm('太厉害了！要重新开始吗？')) {
+                        level = 1;
+                        score = 0;
+                        updateScore();
+                        initLevel();
+                    }
+                }, 2000);
+            }
+        }
+
+        function updateScore() {
+            document.getElementById('scoreValue').textContent = score;
+        }
+
+        function showMessage(text) {
+            const messageEl = document.getElementById('message');
+            messageEl.textContent = text;
+            setTimeout(() => {
+                messageEl.textContent = '';
+            }, 3000);
+        }
+
+        document.getElementById('startBtn').addEventListener('click', () => {
+            document.getElementById('startScreen').classList.add('hidden');
+            initLevel();
+        });
+
+        document.getElementById('nextLevelBtn').addEventListener('click', () => {
+            level++;
+            document.getElementById('nextLevelBtn').classList.add('hidden');
+            initLevel();
+        });
+    </script>
+</body>
+</html>
