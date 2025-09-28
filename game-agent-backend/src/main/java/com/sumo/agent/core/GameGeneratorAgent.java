@@ -119,11 +119,19 @@ public class GameGeneratorAgent {
         }
         
         // 根据游戏类型选择Agent
-        String agentName = gameType.name().toLowerCase() + "GameAgent";
+        // 特殊处理下划线的情况
+        String typeName = gameType.name().toLowerCase().replace("_", "");
+        String agentName = typeName + "GameAgent";
         // 兼容旧的命名方式
         BaseAgent agent = agentRegistry.get(agentName);
         if (agent == null) {
-            agentName = gameType.name().toLowerCase() + "Agent";
+            agentName = typeName + "Agent";
+            agent = agentRegistry.get(agentName);
+        }
+
+        // 尝试原始名称
+        if (agent == null) {
+            agentName = gameType.name().toLowerCase() + "GameAgent";
             agent = agentRegistry.get(agentName);
         }
         

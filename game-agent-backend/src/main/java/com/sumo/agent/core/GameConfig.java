@@ -68,6 +68,8 @@ public class GameConfig {
         MEMORY("记忆游戏"),
         PUZZLE("拼图游戏"),
         DRAWING("绘画游戏"),
+        TRAFFIC_SAFETY("交通安全游戏"),
+        ENGLISH_LEARNING("英语学习游戏"),
         UNIVERSAL("通用游戏");
         
         private final String displayName;

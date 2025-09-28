@@ -64,7 +64,11 @@ public class IntentAnalyzer {
     private GameConfig.GameType extractGameType(String input) {
         if (containsAny(input, "数学", "加法", "减法", "乘法", "除法", "计算", "算术")) {
             return GameConfig.GameType.MATH;
-        } else if (containsAny(input, "单词", "英语", "字母", "拼写", "词汇")) {
+        } else if (containsAny(input, "交通", "过马路", "红绿灯", "交通安全", "汽车", "斑马线", "交通规则")) {
+            return GameConfig.GameType.TRAFFIC_SAFETY;
+        } else if (containsAny(input, "英语", "英文", "字母", "ABC", "单词", "拼写", "词汇", "English")) {
+            return GameConfig.GameType.ENGLISH_LEARNING;
+        } else if (containsAny(input, "单词", "词语", "汉字", "语文")) {
             return GameConfig.GameType.WORD;
         } else if (containsAny(input, "记忆", "记住", "配对", "记忆力")) {
             return GameConfig.GameType.MEMORY;
@@ -73,7 +77,7 @@ public class IntentAnalyzer {
         } else if (containsAny(input, "画", "绘画", "涂鸦", "创作")) {
             return GameConfig.GameType.DRAWING;
         }
-        
+
         // 默认通用游戏，使用AI生成
         return GameConfig.GameType.UNIVERSAL;
     }
@@ -142,8 +146,10 @@ public class IntentAnalyzer {
             return "dinosaur";
         } else if (containsAny(input, "超级英雄", "英雄", "超人")) {
             return "superhero";
+        } else if (containsAny(input, "城市", "街道", "马路", "交通")) {
+            return "city";
         }
-        
+
         return "adventure";
     }
     
@@ -159,6 +165,8 @@ public class IntentAnalyzer {
             case MEMORY -> themeTitle + "记忆大师";
             case PUZZLE -> themeTitle + "拼图世界";
             case DRAWING -> themeTitle + "创意画板";
+            case TRAFFIC_SAFETY -> themeTitle + "交通小卫士";
+            case ENGLISH_LEARNING -> themeTitle + "英语小达人";
             case UNIVERSAL -> themeTitle + "游戏世界";
         };
     }
@@ -174,6 +182,7 @@ public class IntentAnalyzer {
             case "ocean" -> "海洋";
             case "dinosaur" -> "恐龙";
             case "superhero" -> "超级英雄";
+            case "city" -> "城市";
             default -> "奇妙";
         };
     }
