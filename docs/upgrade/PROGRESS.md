@@ -2,12 +2,12 @@
 
 > 星河自动维护，定时更新。苏摩随时查看即可。
 
-## 总体进度：██████░░░░░░░░░░░░░░ 25%
+## 总体进度：██████████░░░░░░░░░░ 50%
 
 | Phase | 名称 | 状态 | 进度 | 说明 |
 |-------|------|------|------|------|
 | **P1** | 基础框架（AgentLoop + FC + Tool） | ✅ 完成 | 100% | AgentLoop/ToolRegistry/3个工具/Skill系统/v2 API |
-| **P2** | Skill 迁移 | 🔲 待开始 | 0% | 4个现有游戏Agent → YAML Skill |
+| **P2** | Skill 迁移 | ✅ 完成 | 100% | 6 个 YAML Skill（4迁移 + 2新增） |
 | **P3** | 自主纠错（Probe + Playwright + 评估） | 🔲 待开始 | 0% | Game Runtime Probe / evaluate_game / fix_game |
 | **P4** | 优化完善 | 🔲 待开始 | 0% | 上下文管理/容错/性能/文档 |
 
@@ -24,15 +24,15 @@
 | 1.5 Skill 系统 | ✅ | v2/skill/SkillDefinition+SkillLoader |
 | 1.6 v2 API 端点 | ✅ | POST /api/game/v2/generate |
 
-## Phase 2 明细 🔲 0%
+## Phase 2 明细 ✅ 100%
 
 | 任务 | 状态 | 说明 |
 |------|------|------|
-| 2.1 memory_master.yaml | 🔲 | MemoryGameAgent → Skill |
-| 2.2 english_explorer.yaml | 🔲 | EnglishLearningAgent → Skill |
-| 2.3 traffic_safety.yaml | 🔲 | TrafficSafetyAgent → Skill |
-| 2.4 shape_colors.yaml | 🔲 | 新增 Skill |
-| 2.5 logic_puzzle.yaml | 🔲 | 新增 Skill |
+| 2.1 memory_master.yaml | ✅ | MemoryGameAgent → 记忆配对翻牌 |
+| 2.2 english_explorer.yaml | ✅ | EnglishLearningAgent → 英语单词拼写 |
+| 2.3 traffic_safety.yaml | ✅ | TrafficSafetyAgent → 交通安全模拟 |
+| 2.4 shape_colors.yaml | ✅ | 新增：形状颜色认知（4-6岁） |
+| 2.5 logic_puzzle.yaml | ✅ | 新增：逻辑推理（8-12岁） |
 
 ## Phase 3 明细 🔲 0%
 
@@ -55,4 +55,4 @@
 
 ---
 
-*最后更新：2026-03-28 15:45*
+*最后更新：2026-03-28 15:55*
