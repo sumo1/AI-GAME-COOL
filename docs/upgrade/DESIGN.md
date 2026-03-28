@@ -259,24 +259,92 @@ Agent Loop 的迭代终止条件：
 - 收集每步的 console 日志和 DOM 变化
 - 如果游戏有键盘操作，模拟方向键/空格等基本输入
 
-### 评估方案调整：放弃视觉模型，改用代码分析 + Playwright 行为验证
+### 评估方案调整：Game Runtime Probe + Playwright 行为验证 + LLM 代码 Review
 **决定**：暂不使用视觉模型评估（没有合适的模型支持）。
-**替代方案**：
-- **Playwright 行为验证**：渲染 → 模拟交互 → 检测 DOM 变化（按钮点击后是否有响应、分数是否变化、游戏状态是否推进）
-- **Console 日志分析**：捕获 JS 错误、警告
-- **DOM 检测**：元素是否超出 viewport、是否有不可见但应该可见的元素（`display:none` / `opacity:0` / 越界）
-- **代码静态分析**：检查 HTML 结构完整性、JS 是否有未定义变量引用、事件监听器是否绑定
-- **LLM 代码 Review**：把 HTML 源码 + Playwright 行为验证报告（而非截图）提交给 LLM 评估
 
-**评估维度调整**：
+**核心创新：Game Runtime Probe（游戏运行时探针）**
 
-| 维度 | 权重 | 检测方式 | 评估内容 |
+单靠 Playwright 只能判断"游戏活着还是死了"，无法判断"游戏好不好"。我们需要让游戏**自己报告运行状态**。
+
+**方案**：在每个生成的 HTML 中注入一段标准化的监控代码（探针），游戏运行时自动采集结构化数据，Playwright 负责模拟操作并收割数据，最后把结构化报告交给 LLM 判断质量。
+
+**探针注入代码（`game-probe.js`）**：
+```javascript
+window.__GAME_PROBE__ = {
+  events: [],           // 所有用户交互事件
+  stateChanges: [],     // 游戏状态变化（分数、关卡、生命值...）
+  errors: [],           // 运行时错误
+  elementPositions: [], // 关键元素位置快照（越界检测）
+  collisions: [],       // 碰撞事件
+  timing: {},           // 响应延迟数据
+  domMutations: [],     // DOM 变化记录
+};
+
+// 1. 错误捕获
+window.addEventListener('error', e => {
+  window.__GAME_PROBE__.errors.push({
+    msg: e.message, file: e.filename, line: e.lineno, ts: Date.now()
+  });
+});
+
+// 2. 交互事件追踪：覆写 addEventListener，记录所有 click/keydown 事件
+
+// 3. DOM 变化监听：MutationObserver 监控游戏区域 DOM 变化
+
+// 4. 状态快照：每秒检测一次分数元素、游戏状态元素的文本变化
+
+// 5. 越界检测：定时扫描所有可见元素的 getBoundingClientRect vs viewport
+```
+
+**评估流程（三步）**：
+```
+Step 1: Playwright 注入 + 模拟操作
+  ├── 注入 game-probe.js 到 HTML
+  ├── Headless Chrome 渲染页面
+  ├── 模拟点击"开始"按钮
+  ├── 模拟玩 3-5 步操作（点击选项/按钮/方向键）
+  └── 每步之间等待 500ms，让游戏响应
+
+Step 2: 收割 Probe 数据
+  ├── 执行 page.evaluate(() => window.__GAME_PROBE__)
+  └── 得到结构化的运行报告 JSON
+
+Step 3: LLM 质量判断
+  ├── 输入：Probe 运行报告 + HTML 源码摘要 + 原始用户需求
+  └── 输出：各维度评分 + 问题列表 + 改进建议
+```
+
+**LLM 拿到的运行报告示例**：
+```json
+{
+  "console_errors": [],
+  "user_interactions": [
+    {"type": "click", "target": "#start-btn", "ts": 100, "dom_changed": true},
+    {"type": "click", "target": ".answer-3", "ts": 2500, "dom_changed": true,
+     "score_before": 0, "score_after": 10}
+  ],
+  "out_of_bounds_elements": [],
+  "state_transitions": ["idle → playing → answered_correct → next_question"],
+  "dom_mutations_count": 12,
+  "final_state": {"score": 10, "question_count": 2, "errors": 0},
+  "response_latency_avg_ms": 45
+}
+```
+
+**为什么这比截图更好**：
+- 截图是"让 LLM 猜游戏怎么样"——主观、不可靠
+- Probe 报告是"让游戏自己告诉你它怎么样"——客观、结构化、可编程
+- LLM 的角色从"看图说话"变成"分析报告做判断"——这是 LLM 擅长的
+
+**评估维度（基于 Probe 数据）**：
+
+| 维度 | 权重 | 数据来源 | 判断依据 |
 |------|------|---------|---------|
-| **可运行性** | 20 分 | Playwright 渲染 + console 日志 | 页面能正常加载，无 JS 报错，不白屏 |
-| **布局正确性** | 20 分 | DOM 检测 + 边界检查 | 元素不越界、布局合理、关键元素可见 |
-| **交互响应性** | 20 分 | Playwright 模拟操作 + DOM 变化检测 | 按钮可点击、有反馈、游戏状态能变化 |
-| **教育匹配度** | 20 分 | LLM 代码 Review | 内容是否匹配目标年龄和教育目标 |
-| **游戏完整性** | 20 分 | 代码分析 + LLM Review | 有开始/结束、有计分、有胜负条件 |
+| **可运行性** | 20 分 | Probe.errors + 页面加载状态 | 无 JS 错误、页面正常渲染 |
+| **布局正确性** | 20 分 | Probe.elementPositions | 无越界元素、关键元素可见 |
+| **交互响应性** | 20 分 | Probe.events + Probe.stateChanges | 点击后 DOM 有变化、状态有推进 |
+| **教育匹配度** | 20 分 | LLM Review（代码 + Probe 报告 + 需求） | 内容匹配目标年龄和教育目标 |
+| **游戏完整性** | 20 分 | Probe.stateChanges + 代码分析 | 有开始/结束状态、有计分、有完成条件 |
 
 ### 用户截图反馈
 **决定**：不支持。交互模式保持纯文本对话。
