@@ -7,7 +7,7 @@
 | Phase | 名称 | 状态 | 进度 | 说明 |
 |-------|------|------|------|------|
 | **P1** | 基础框架（AgentLoop + FC + Tool） | ✅ 完成 | 100% | AgentLoop/ToolRegistry/3个工具/Skill系统/v2 API |
-| **P2** | Skill 迁移 | ✅ 完成 | 100% | 6 个 YAML Skill（4迁移 + 2新增） |
+| **P2** | Skill 迁移 | ✅ 完成 | 100% | 5个YAML Skill（3个迁移 + 2个新增） |
 | **P3** | 自主纠错（Probe + Playwright + 评估） | 🔲 待开始 | 0% | Game Runtime Probe / evaluate_game / fix_game |
 | **P4** | 优化完善 | 🔲 待开始 | 0% | 上下文管理/容错/性能/文档 |
 
@@ -55,4 +55,4 @@
 
 ---
 
-*最后更新：2026-03-28 15:55*
+*最后更新：2026-03-28 16:00*
