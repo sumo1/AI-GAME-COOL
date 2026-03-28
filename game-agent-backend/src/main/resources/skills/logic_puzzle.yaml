@@ -1,0 +1,234 @@
+name: logic_puzzle
+displayName: 逻辑推理小达人
+description: 逻辑思维训练游戏，适合8-12岁儿童，包含数字规律、图形序列等推理题
+ageGroup: "8-12"
+difficulty:
+  - medium
+  - hard
+tags:
+  - 逻辑
+  - 推理
+  - 规律
+  - 思维
+gameType: puzzle
+
+template: |
+  <!DOCTYPE html>
+  <html lang="zh-CN">
+  <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>逻辑推理小达人</title>
+      <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: 'Comic Sans MS', cursive, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 20px; }
+          .game-container { background: white; border-radius: 20px; padding: 30px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-width: 650px; width: 100%; text-align: center; }
+          h1 { color: #5c6bc0; font-size: 28px; margin-bottom: 10px; }
+          .subtitle { color: #666; font-size: 14px; margin-bottom: 20px; }
+          .score-bar { display: flex; justify-content: space-between; margin-bottom: 20px; padding: 10px 15px; background: #e8eaf6; border-radius: 10px; }
+          .score-bar span { font-size: 16px; font-weight: bold; color: #3f51b5; }
+          .sequence-area { margin: 25px 0; }
+          .sequence-label { font-size: 18px; color: #555; margin-bottom: 15px; }
+          .sequence { display: flex; justify-content: center; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+          .seq-item { width: 55px; height: 55px; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: bold; border-radius: 12px; background: #e8eaf6; color: #3f51b5; }
+          .seq-blank { border: 3px dashed #ff9800; background: #fff3e0; color: #ff9800; font-size: 28px; }
+          .options { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin: 20px 0; }
+          .option-btn { padding: 18px; border: 3px solid #e0e0e0; border-radius: 15px; background: #fff; cursor: pointer; font-size: 20px; font-weight: bold; transition: all 0.2s; color: #333; }
+          .option-btn:hover { border-color: #5c6bc0; transform: scale(1.03); }
+          .option-btn.correct { border-color: #4caf50; background: #e8f5e9; color: #2e7d32; }
+          .option-btn.wrong { border-color: #f44336; background: #ffebee; color: #c62828; }
+          .hint-text { font-size: 14px; color: #999; margin: 10px 0; font-style: italic; }
+          .feedback { font-size: 22px; margin: 15px 0; min-height: 35px; }
+          .start-btn, .restart-btn { padding: 15px 40px; font-size: 20px; border: none; border-radius: 25px; cursor: pointer; background: linear-gradient(135deg, #5c6bc0, #7e57c2); color: white; margin: 10px; transition: transform 0.2s; }
+          .start-btn:hover, .restart-btn:hover { transform: scale(1.05); }
+          .hidden { display: none; }
+          .explanation { font-size: 14px; color: #666; margin-top: 5px; min-height: 20px; }
+      </style>
+  </head>
+  <body>
+      <div class="game-container">
+          <h1>🧩 逻辑推理小达人 🧠</h1>
+          <p class="subtitle">找规律、做推理，锻炼你的超级大脑！</p>
+
+          <div id="startScreen">
+              <p style="font-size:18px; margin:20px 0;">观察数列或图形的规律，选出正确答案！</p>
+              <button class="start-btn" onclick="startGame()">🚀 开始挑战</button>
+          </div>
+
+          <div id="gameScreen" class="hidden">
+              <div class="score-bar">
+                  <span>⭐ 得分: <span id="score">0</span></span>
+                  <span>📝 第 <span id="current">1</span>/8 题</span>
+              </div>
+              <div class="sequence-area">
+                  <div class="sequence-label" id="questionType"></div>
+                  <div class="sequence" id="sequence"></div>
+                  <div class="hint-text" id="hint"></div>
+              </div>
+              <div class="options" id="options"></div>
+              <div class="feedback" id="feedback"></div>
+              <div class="explanation" id="explanation"></div>
+          </div>
+
+          <div id="resultScreen" class="hidden">
+              <h2 id="resultTitle" style="color:#5c6bc0; margin-bottom:10px;"></h2>
+              <p id="resultText" style="font-size:18px; margin:10px 0;"></p>
+              <p style="font-size:16px; color:#666;">最终得分: <span id="finalScore"></span> 分</p>
+              <button class="restart-btn" onclick="startGame()">🔄 再来一局</button>
+          </div>
+      </div>
+
+      <script>
+          let score = 0, currentQ = 0, totalQ = 8, questions = [];
+
+          // 数字规律题生成器
+          function genArithmetic() {
+              let start = Math.floor(Math.random() * 10) + 1;
+              let diff = Math.floor(Math.random() * 5) + 2;
+              let seq = [];
+              for (let i = 0; i < 5; i++) seq.push(start + diff * i);
+              let answer = start + diff * 5;
+              let wrongs = [answer + diff, answer - 1, answer + 2].filter(w => w !== answer && w > 0);
+              return { type: '数字规律', hint: '找出数字之间的规律', seq: seq.map(String), answer: String(answer),
+                       options: shuffle([String(answer), ...wrongs.slice(0,3).map(String)]),
+                       explanation: '规律：每次加 ' + diff };
+          }
+
+          function genMultiply() {
+              let base = Math.floor(Math.random() * 4) + 2;
+              let seq = [];
+              for (let i = 0; i < 5; i++) seq.push(base * (i + 1));
+              let answer = base * 6;
+              let wrongs = [answer + base, answer - base, answer + 1];
+              return { type: '乘法规律', hint: '这些数字和乘法有关哦', seq: seq.map(String), answer: String(answer),
+                       options: shuffle([String(answer), ...wrongs.slice(0,3).map(String)]),
+                       explanation: '规律：' + base + ' 的倍数' };
+          }
+
+          function genAlternating() {
+              let a = Math.floor(Math.random() * 5) + 1;
+              let b = Math.floor(Math.random() * 5) + 6;
+              let seq = [];
+              for (let i = 0; i < 5; i++) seq.push(i % 2 === 0 ? a + i : b + i);
+              let answer = 5 % 2 === 0 ? a + 5 : b + 5;
+              let wrongs = [answer + 1, answer - 1, answer + 3];
+              return { type: '交替规律', hint: '注意奇数位和偶数位的不同规律', seq: seq.map(String), answer: String(answer),
+                       options: shuffle([String(answer), ...wrongs.slice(0,3).map(String)]),
+                       explanation: '规律：两组数字交替出现，各自递增' };
+          }
+
+          function genSquare() {
+              let seq = [];
+              for (let i = 1; i <= 5; i++) seq.push(i * i);
+              let answer = 36;
+              return { type: '平方数', hint: '每个数字都是某个数的平方', seq: seq.map(String), answer: '36',
+                       options: shuffle(['36', '30', '35', '42']),
+                       explanation: '规律：1², 2², 3², 4², 5², 6²' };
+          }
+
+          const generators = [genArithmetic, genMultiply, genAlternating, genSquare];
+
+          function shuffle(arr) { return arr.sort(() => Math.random() - 0.5); }
+
+          function generateQuestions() {
+              let qs = [];
+              for (let i = 0; i < totalQ; i++) {
+                  let gen = generators[i % generators.length];
+                  qs.push(gen());
+              }
+              return shuffle(qs);
+          }
+
+          function startGame() {
+              score = 0; currentQ = 0;
+              questions = generateQuestions();
+              document.getElementById('startScreen').classList.add('hidden');
+              document.getElementById('resultScreen').classList.add('hidden');
+              document.getElementById('gameScreen').classList.remove('hidden');
+              document.getElementById('score').textContent = '0';
+              showQuestion();
+          }
+
+          function showQuestion() {
+              if (currentQ >= totalQ) { showResult(); return; }
+              let q = questions[currentQ];
+              document.getElementById('current').textContent = currentQ + 1;
+              document.getElementById('questionType').textContent = '【' + q.type + '】找出 ? 应该是什么';
+              document.getElementById('hint').textContent = '💡 提示：' + q.hint;
+              document.getElementById('feedback').textContent = '';
+              document.getElementById('explanation').textContent = '';
+
+              let seqDiv = document.getElementById('sequence');
+              seqDiv.innerHTML = '';
+              q.seq.forEach(v => {
+                  let el = document.createElement('div');
+                  el.className = 'seq-item';
+                  el.textContent = v;
+                  seqDiv.appendChild(el);
+              });
+              let blank = document.createElement('div');
+              blank.className = 'seq-item seq-blank';
+              blank.textContent = '?';
+              seqDiv.appendChild(blank);
+
+              let optDiv = document.getElementById('options');
+              optDiv.innerHTML = '';
+              q.options.forEach(opt => {
+                  let btn = document.createElement('button');
+                  btn.className = 'option-btn';
+                  btn.textContent = opt;
+                  btn.onclick = () => checkAnswer(opt, q, btn);
+                  optDiv.appendChild(btn);
+              });
+          }
+
+          function checkAnswer(selected, q, btn) {
+              let btns = document.querySelectorAll('.option-btn');
+              btns.forEach(b => b.onclick = null);
+              if (selected === q.answer) {
+                  btn.classList.add('correct');
+                  score += 10;
+                  document.getElementById('score').textContent = score;
+                  document.getElementById('feedback').textContent = '🎉 聪明！答对了！';
+              } else {
+                  btn.classList.add('wrong');
+                  btns.forEach(b => { if (b.textContent === q.answer) b.classList.add('correct'); });
+                  document.getElementById('feedback').textContent = '🤔 答案是 ' + q.answer;
+              }
+              document.getElementById('explanation').textContent = q.explanation;
+              currentQ++;
+              setTimeout(showQuestion, 2000);
+          }
+
+          function showResult() {
+              document.getElementById('gameScreen').classList.add('hidden');
+              document.getElementById('resultScreen').classList.remove('hidden');
+              document.getElementById('finalScore').textContent = score;
+              if (score >= 60) {
+                  document.getElementById('resultTitle').textContent = '🧠 逻辑思维大师！';
+                  document.getElementById('resultText').textContent = '你的推理能力超级棒，继续挑战更难的吧！';
+              } else {
+                  document.getElementById('resultTitle').textContent = '💪 继续加油！';
+                  document.getElementById('resultText').textContent = '多多观察规律，你的逻辑能力会越来越强！';
+              }
+          }
+      </script>
+  </body>
+  </html>
+
+promptHint: |
+  参考此模板的结构和交互模式，根据用户需求调整：
+  - 推理类型（数字规律、图形序列、逻辑判断、空间推理）
+  - 难度级别（简单等差数列 vs 复杂混合规律）
+  - 题目数量和时间限制
+  - 是否显示提示和解释
+  - 视觉主题
+
+evaluationCriteria:
+  - 题目逻辑是否正确（答案确实符合规律）
+  - 难度是否匹配8-12岁认知水平
+  - 是否有规律解释（答题后展示）
+  - 选项中是否有且仅有一个正确答案
+  - 计分系统是否正确
+  - 所有元素是否在可见区域内
+  - 界面是否清晰可读
