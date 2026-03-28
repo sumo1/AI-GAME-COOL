@@ -45,6 +45,7 @@ public class AgentLoop {
 
         WorkingMemory memory = new WorkingMemory();
         gameTools.setWorkingMemory(memory);
+        gameTools.resetFixCount();
         log.info("AgentLoop 启动, 用户输入: {}", userInput);
 
         for (int i = 0; i < MAX_ITERATIONS; i++) {
@@ -127,11 +128,27 @@ public class AgentLoop {
 
             ## 你的工作流程
 
+            ### 首次生成（迭代 1）
             1. **分析需求**：理解用户想要什么类型的游戏、适合什么年龄段、有什么教育目标
             2. **查找技能模板**：调用 listSkills 查看是否有匹配的内置模板
             3. **加载模板**（可选）：如果有匹配的模板，调用 loadSkill 获取参考
             4. **生成游戏**：调用 generateGame 生成完整的 HTML5 游戏
-            5. **总结反馈**：向用户描述生成的游戏特点
+            5. **评估游戏**：调用 evaluateGame 对生成的游戏进行质量评估
+            6. **根据评估结果决定**：
+               - 评分 ≥ 80：质量达标，向用户总结反馈
+               - 评分 < 80：需要修复，调用 fixGame 修复问题，然后再次评估
+
+            ### 修复迭代（迭代 2+）
+            1. 查看 working_memory 中的 open_issues
+            2. 调用 fixGame 修复问题
+            3. 调用 evaluateGame 重新评估
+            4. 重复直到评分达标或达到最大迭代次数
+
+            ## 工具使用说明
+
+            - **evaluateGame**：传入 HTML 代码，返回评估报告（含评分和问题列表）
+            - **fixGame**：传入问题描述，自动从工作记忆获取当前 HTML 并修复
+            - 评估和修复会自动更新工作记忆中的游戏状态
 
             ## 游戏质量标准
 
@@ -150,5 +167,6 @@ public class AgentLoop {
             - 适合什么年龄段
             - 核心玩法是什么
             - 有哪些教育目标
+            - 评估得分和质量情况
             """;
 }
