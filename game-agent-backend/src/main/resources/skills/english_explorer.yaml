@@ -1,0 +1,307 @@
+name: english_explorer
+displayName: 快乐学英语
+description: 英语词汇学习游戏，包含看图选词、听音选图、单词拼写三个关卡，适合5-9岁儿童
+ageGroup: "5-9"
+difficulty:
+  - easy
+  - medium
+  - hard
+tags:
+  - 英语
+  - 词汇
+  - 拼写
+  - 听力
+gameType: quiz
+
+template: |
+  <!DOCTYPE html>
+  <html lang="zh-CN">
+  <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>快乐学英语</title>
+      <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; -webkit-user-select: none; user-select: none; }
+          body { font-family: 'Comic Sans MS', cursive, sans-serif; background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+          .game-container { background: white; border-radius: 20px; padding: 30px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-width: 650px; width: 100%; }
+          h1 { text-align: center; color: #333; margin-bottom: 15px; font-size: 1.8em; }
+          .header { display: flex; justify-content: space-around; margin-bottom: 15px; flex-wrap: wrap; gap: 8px; }
+          .info { background: #f0f0f0; padding: 8px 16px; border-radius: 10px; font-size: 15px; }
+          .progress { height: 14px; background: #ecf0f1; border-radius: 7px; overflow: hidden; margin-bottom: 20px; }
+          .progress-bar { height: 100%; background: linear-gradient(90deg, #22c55e, #10b981); transition: width 0.4s; }
+          .question-area { background: #f8f9fa; padding: 25px; border-radius: 15px; margin-bottom: 20px; text-align: center; }
+          .emoji-display { font-size: 80px; margin-bottom: 15px; }
+          .word-display { font-size: 2em; color: #1e293b; font-weight: bold; margin-bottom: 15px; min-height: 1.2em; letter-spacing: 3px; }
+          .sound-btn { background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; border: none; padding: 12px 24px; border-radius: 50px; font-size: 1.1em; cursor: pointer; margin-bottom: 15px; }
+          .sound-btn:hover { opacity: 0.9; }
+          .options { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 15px; }
+          .option-btn { padding: 16px; font-size: 1.3em; border: none; border-radius: 12px; background: linear-gradient(135deg, #667eea, #764ba2); color: white; cursor: pointer; transition: transform 0.2s; min-height: 60px; }
+          .option-btn:hover { transform: translateY(-2px); }
+          .option-btn:disabled { opacity: 0.7; cursor: default; transform: none; }
+          .option-btn.correct { background: linear-gradient(135deg, #22c55e, #10b981); animation: pulse 0.5s; }
+          .option-btn.wrong { background: linear-gradient(135deg, #ef4444, #dc2626); animation: shake 0.4s; }
+          @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+          @keyframes shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+          .letters { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-bottom: 15px; }
+          .letter-tile { width: 50px; height: 50px; background: white; border: 3px solid #cbd5e1; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: bold; cursor: pointer; transition: all 0.2s; }
+          .letter-tile.selected { background: #fbbf24; border-color: #f59e0b; transform: scale(1.1); }
+          .letter-tile:active { transform: scale(0.9); }
+          .hint-btn { background: #f59e0b; color: white; border: none; padding: 8px 16px; border-radius: 15px; font-size: 14px; cursor: pointer; }
+          .reset-letters-btn { background: #6b7280; color: white; border: none; padding: 8px 16px; border-radius: 15px; font-size: 14px; cursor: pointer; margin-left: 10px; }
+          .feedback { text-align: center; font-size: 1.2em; min-height: 1.5em; }
+          .start-screen { text-align: center; }
+          .start-screen h2 { margin-bottom: 20px; color: #555; }
+          .level-btns { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+          .level-btn { background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; border: none; padding: 18px 28px; border-radius: 20px; font-size: 1.1em; cursor: pointer; }
+          .level-btn:hover { transform: translateY(-2px); }
+          .result { display: none; text-align: center; padding: 20px; }
+          .result.show { display: block; }
+          .result h2 { font-size: 1.6em; margin-bottom: 12px; }
+          .restart-btn { background: #3498db; color: white; border: none; padding: 12px 24px; border-radius: 25px; font-size: 1.1em; cursor: pointer; margin-top: 10px; }
+      </style>
+  </head>
+  <body>
+      <div class="game-container">
+          <h1>🌟 快乐学英语 🐾</h1>
+          <div id="startScreen" class="start-screen">
+              <h2>选择游戏模式</h2>
+              <div class="level-btns">
+                  <button class="level-btn" onclick="startGame(1)">📖 看图选词</button>
+                  <button class="level-btn" onclick="startGame(2)">👂 听音选图</button>
+                  <button class="level-btn" onclick="startGame(3)">✏️ 单词拼写</button>
+              </div>
+          </div>
+          <div id="playArea" style="display:none">
+              <div class="header">
+                  <div class="info">🎯 分数: <span id="score">0</span></div>
+                  <div class="info">📊 关卡: <span id="level">1</span></div>
+                  <div class="info">🔥 连击: <span id="streak">0</span></div>
+                  <div class="info">📝 进度: <span id="progress">1</span>/10</div>
+              </div>
+              <div class="progress"><div class="progress-bar" id="progressBar" style="width:0%"></div></div>
+              <div class="question-area">
+                  <div class="emoji-display" id="emojiDisplay"></div>
+                  <div class="word-display" id="wordDisplay"></div>
+                  <button class="sound-btn" id="soundBtn" style="display:none" onclick="speakWord()">🔊 播放发音</button>
+                  <div class="letters" id="letterArea"></div>
+                  <div style="margin-top:8px">
+                      <button class="hint-btn" id="hintBtn" style="display:none" onclick="giveHint()">💡 提示(-5分)</button>
+                      <button class="reset-letters-btn" id="resetLettersBtn" style="display:none" onclick="resetLetters()">🔄 重置</button>
+                  </div>
+              </div>
+              <div class="options" id="optionsArea"></div>
+              <div class="feedback" id="feedback"></div>
+          </div>
+          <div class="result" id="result">
+              <h2>🎉 游戏完成！</h2>
+              <p>总分: <span id="finalScore"></span></p>
+              <p>正确率: <span id="accuracy"></span>%</p>
+              <p id="encouragement"></p>
+              <button class="restart-btn" onclick="backToMenu()">再玩一次</button>
+          </div>
+      </div>
+      <script>
+          const WORDS = [
+              { word: 'CAT', zh: '猫', emoji: '🐱' },
+              { word: 'DOG', zh: '狗', emoji: '🐶' },
+              { word: 'BIRD', zh: '鸟', emoji: '🐦' },
+              { word: 'FISH', zh: '鱼', emoji: '🐟' },
+              { word: 'RABBIT', zh: '兔子', emoji: '🐰' },
+              { word: 'LION', zh: '狮子', emoji: '🦁' },
+              { word: 'MONKEY', zh: '猴子', emoji: '🐵' },
+              { word: 'PANDA', zh: '熊猫', emoji: '🐼' },
+              { word: 'APPLE', zh: '苹果', emoji: '🍎' },
+              { word: 'BANANA', zh: '香蕉', emoji: '🍌' }
+          ];
+          const TOTAL = 10;
+          let level, score, streak, correctCount, idx, wordList, selected;
+
+          function shuffle(a) { for (let i = a.length-1; i > 0; i--) { const j = Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+
+          function startGame(lv) {
+              level = lv; score = 0; streak = 0; correctCount = 0; idx = 0;
+              wordList = shuffle([...WORDS]);
+              document.getElementById('startScreen').style.display = 'none';
+              document.getElementById('playArea').style.display = 'block';
+              document.getElementById('result').classList.remove('show');
+              document.getElementById('level').textContent = lv;
+              updateUI();
+              nextQuestion();
+          }
+
+          function updateUI() {
+              document.getElementById('score').textContent = score;
+              document.getElementById('streak').textContent = streak;
+              document.getElementById('progress').textContent = Math.min(idx+1, TOTAL);
+              document.getElementById('progressBar').style.width = (idx/TOTAL*100)+'%';
+          }
+
+          function speakWord() {
+              if ('speechSynthesis' in window) {
+                  const u = new SpeechSynthesisUtterance(wordList[idx % wordList.length].word);
+                  u.lang = 'en-US'; u.rate = 0.8;
+                  speechSynthesis.speak(u);
+              }
+          }
+
+          function nextQuestion() {
+              if (idx >= TOTAL) { endGame(); return; }
+              const w = wordList[idx % wordList.length];
+              document.getElementById('feedback').textContent = '';
+              document.getElementById('optionsArea').innerHTML = '';
+              document.getElementById('letterArea').innerHTML = '';
+              document.getElementById('hintBtn').style.display = 'none';
+              document.getElementById('resetLettersBtn').style.display = 'none';
+              document.getElementById('soundBtn').style.display = 'none';
+
+              if (level === 1) setupLevel1(w);
+              else if (level === 2) setupLevel2(w);
+              else setupLevel3(w);
+              updateUI();
+          }
+
+          function makeOptions(correct) {
+              const opts = [correct];
+              while (opts.length < 4) {
+                  const r = WORDS[Math.floor(Math.random()*WORDS.length)];
+                  if (!opts.find(o => o.word === r.word)) opts.push(r);
+              }
+              return shuffle(opts);
+          }
+
+          function setupLevel1(w) {
+              document.getElementById('emojiDisplay').textContent = w.emoji;
+              document.getElementById('wordDisplay').textContent = '';
+              const opts = makeOptions(w);
+              const area = document.getElementById('optionsArea');
+              opts.forEach(o => {
+                  const btn = document.createElement('button');
+                  btn.className = 'option-btn';
+                  btn.textContent = o.word;
+                  btn.onclick = () => checkOption(btn, o.word === w.word);
+                  area.appendChild(btn);
+              });
+          }
+
+          function setupLevel2(w) {
+              document.getElementById('emojiDisplay').textContent = '';
+              document.getElementById('wordDisplay').textContent = '🔊 点击播放';
+              document.getElementById('soundBtn').style.display = 'inline-block';
+              setTimeout(speakWord, 400);
+              const opts = makeOptions(w);
+              const area = document.getElementById('optionsArea');
+              opts.forEach(o => {
+                  const btn = document.createElement('button');
+                  btn.className = 'option-btn';
+                  btn.style.fontSize = '2.5em';
+                  btn.textContent = o.emoji;
+                  btn.onclick = () => checkOption(btn, o.word === w.word);
+                  area.appendChild(btn);
+              });
+          }
+
+          function setupLevel3(w) {
+              selected = [];
+              document.getElementById('emojiDisplay').textContent = w.emoji;
+              document.getElementById('wordDisplay').textContent = '';
+              document.getElementById('soundBtn').style.display = 'inline-block';
+              document.getElementById('hintBtn').style.display = 'inline-block';
+              document.getElementById('resetLettersBtn').style.display = 'inline-block';
+              const letters = shuffle(w.word.split(''));
+              const area = document.getElementById('letterArea');
+              letters.forEach((ch, i) => {
+                  const tile = document.createElement('div');
+                  tile.className = 'letter-tile';
+                  tile.textContent = ch;
+                  tile.onclick = () => {
+                      if (tile.classList.contains('selected')) return;
+                      tile.classList.add('selected');
+                      selected.push(ch);
+                      document.getElementById('wordDisplay').textContent = selected.join('');
+                      if (selected.length === w.word.length) {
+                          setTimeout(() => {
+                              if (selected.join('') === w.word) { handleCorrect(); idx++; setTimeout(nextQuestion, 1200); }
+                              else { handleWrong(w); resetLetters(); }
+                          }, 400);
+                      }
+                  };
+                  area.appendChild(tile);
+              });
+          }
+
+          function resetLetters() {
+              selected = [];
+              document.getElementById('wordDisplay').textContent = '';
+              document.querySelectorAll('.letter-tile').forEach(t => t.classList.remove('selected'));
+          }
+
+          function giveHint() {
+              const w = wordList[idx % wordList.length];
+              score = Math.max(0, score - 5);
+              updateUI();
+              document.getElementById('feedback').textContent = '💡 第一个字母是 ' + w.word[0];
+          }
+
+          function checkOption(btn, correct) {
+              document.querySelectorAll('.option-btn').forEach(b => b.disabled = true);
+              if (correct) { btn.classList.add('correct'); handleCorrect(); }
+              else { btn.classList.add('wrong'); handleWrong(wordList[idx % wordList.length]); }
+              idx++;
+              setTimeout(nextQuestion, 1300);
+          }
+
+          function handleCorrect() {
+              const base = level === 1 ? 10 : level === 2 ? 15 : 20;
+              streak++;
+              const bonus = streak >= 3 ? 30 : 0;
+              score += base + bonus;
+              correctCount++;
+              const fb = document.getElementById('feedback');
+              fb.textContent = bonus > 0 ? '🎉 连击奖励！+' + (base+bonus) + '分' : '✅ 正确！+' + base + '分';
+              updateUI();
+          }
+
+          function handleWrong(w) {
+              streak = 0;
+              score = Math.max(0, score - 5);
+              document.getElementById('feedback').textContent = '❌ 正确答案是 ' + w.word + '（' + w.zh + '）';
+              updateUI();
+          }
+
+          function endGame() {
+              document.getElementById('playArea').style.display = 'none';
+              const r = document.getElementById('result');
+              r.classList.add('show');
+              const acc = Math.round(correctCount/TOTAL*100);
+              document.getElementById('finalScore').textContent = score;
+              document.getElementById('accuracy').textContent = acc;
+              const msg = acc >= 90 ? '🏆 英语小达人！太棒了！' : acc >= 60 ? '⭐ 很不错，继续加油！' : '💪 多练习就会越来越好！';
+              document.getElementById('encouragement').textContent = msg;
+          }
+
+          function backToMenu() {
+              document.getElementById('result').classList.remove('show');
+              document.getElementById('playArea').style.display = 'none';
+              document.getElementById('startScreen').style.display = 'block';
+          }
+      </script>
+  </body>
+  </html>
+
+promptHint: |
+  参考此模板的结构和交互模式，但根据用户的具体需求调整：
+  - 词汇主题（动物/颜色/水果/身体部位/日常用品等）
+  - 词汇难度（3-4字母简单词 / 5-7字母中等词）
+  - 是否使用 Web Speech API 发音
+  - 关卡模式选择（看图选词/听音选图/单词拼写）
+  - 积分和连击奖励规则
+  - 是否添加成就系统
+
+evaluationCriteria:
+  - 三种关卡模式是否都能正常运行
+  - 看图选词：显示emoji后能选择正确单词
+  - 听音选图：发音播放后能选择正确图片
+  - 单词拼写：字母点击后正确拼出单词
+  - 答对/答错是否有明确反馈和分数变化
+  - 连击奖励是否正确计算
+  - 游戏结束后是否显示正确率和鼓励语
