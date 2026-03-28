@@ -51,47 +51,53 @@
 
 ### ADR-001：LLM 选型与 Function Calling 支持
 
-**状态**：待讨论
+**状态**：✅ 已确认（2026-03-28）
 
-**背景**：当前项目使用阿里云百炼（DashScope），支持通义千问/Kimi/DeepSeek/Qwen3。需要确认哪些模型支持 Function Calling。
+**决定**：继续使用 Spring AI + DashScope（阿里云百炼），利用其 Function Calling 支持。
 
-**方案选项**：
-- A) 继续使用 Spring AI + DashScope，利用其 Function Calling 支持
-- B) 引入 OpenAI 兼容的 API（如 Qwen3 的 OpenAI 兼容模式）
-- C) 混合方案：主循环用支持 FC 的模型，评估用视觉模型
-
-**待确认**：
-- [ ] 通义千问系列对 Function Calling 的支持程度
-- [ ] Spring AI 的 ChatClient 是否原生支持 tool_calls 解析
-- [ ] 是否需要引入多模态模型来"看"游戏截图
+**理由**：通义千问/Qwen3 对 FC 支持够用，Spring AI 的 ChatClient 原生支持 functions() 注册和 tool_calls 解析。评估环节引入多模态模型看截图。
 
 ### ADR-002：游戏评估方案
 
-**状态**：待讨论
+**状态**：✅ 已确认（2026-03-28）
 
-**背景**：Agent 需要能评估生成的 HTML 游戏的可玩性。
+**决定**：Headless Browser 截图 + 视觉模型评估。
 
-**方案选项**：
-- A) 静态分析：解析 HTML/JS，检测常见问题（碰撞逻辑、边界检查、事件绑定）
-- B) 运行时评估：用 headless browser 渲染游戏，截图后用视觉模型评估
-- C) 混合方案：先静态分析快速检测，再运行时验证关键逻辑
-- D) LLM 自评：把生成的 HTML 代码回传给 LLM，让它自己 review
+**方案**：
+- 用 Playwright（Java 版）渲染生成的 HTML 游戏
+- 截取游戏画面，提交给多模态 LLM（如 Qwen-VL）评估可玩性
+- 评估维度：区域越界、碰撞逻辑、交互响应性、视觉完整性、布局合理性
 
-**考虑因素**：
-- 静态分析速度快但覆盖面有限
-- headless browser 更真实但引入新依赖（Playwright/Puppeteer）
-- Java 后端集成 headless browser 的方案
+**技术选型**：Playwright for Java（微软官方 Java 绑定，无需 Node.js 中间层）
 
 ### ADR-003：Skill 系统设计
 
-**状态**：待讨论
+**状态**：✅ 已确认（2026-03-28）
 
-**背景**：将现有硬编码的游戏 Agent 转变为 Skill。
+**决定**：YAML 格式描述文件。
 
-**设计思路**：
-- Skill = 游戏模板 + 生成提示词 + 评估标准
-- 存储形式：JSON/YAML 描述文件 + 模板代码
-- 加载方式：通过 load_skill 工具，将 Skill 信息注入 LLM 上下文
+**理由**：可读性好、支持多行文本（prompt 模板天然友好）、Java 有 SnakeYAML 支持。
+
+**Skill 结构**：
+```yaml
+name: math_adventure
+display_name: 数学冒险
+description: 10以内加减法互动游戏
+age_group: "4-8"
+difficulty: easy
+tags: [数学, 加法, 减法]
+template: |
+  <!DOCTYPE html>
+  ... (内置 HTML 模板)
+prompt_hint: |
+  生成一个数学练习游戏，要求...
+evaluation_criteria:
+  - 数学题目难度是否匹配年龄段
+  - 答对/答错是否有明确反馈
+  - 是否有计分系统
+```
+
+**存储位置**：`src/main/resources/skills/` 目录下，每个 Skill 一个 YAML 文件
 
 ---
 
@@ -143,14 +149,17 @@
 ### 2026-03-28
 - 创建 feat/agent-loop-upgrade 分支
 - 创建项目规划文档（PLAN.md）、实现文档（IMPL.md）、Review 文档（REVIEW.md）
-- 状态：设计讨论阶段，等待苏摩确认 ADR-001/002/003
+- ADR-001/002/003 全部确认：FC 用 Spring AI + DashScope，评估用 Headless Browser + 视觉模型，Skill 用 YAML
+- **Phase 1 正式启动**——从 1.1 AgentLoop 核心类设计开始
 
 ---
 
 ## 4. 开放问题
 
-- [ ] Function Calling 模型选型确认
-- [ ] 游戏评估方案确认（静态 vs 运行时 vs 混合）
-- [ ] Skill 存储位置和格式确认
+- [x] ~~Function Calling 模型选型确认~~ → Spring AI + DashScope
+- [x] ~~游戏评估方案确认~~ → Headless Browser + 视觉模型
+- [x] ~~Skill 存储位置和格式确认~~ → YAML，`resources/skills/`
 - [ ] 前端是否需要同步升级（支持多轮迭代展示）
 - [ ] 是否需要支持用户中途干预迭代过程（"这个方向不对，换一种"）
+- [ ] Playwright for Java 的版本和依赖确认
+- [ ] 视觉评估用哪个多模态模型（Qwen-VL / GPT-4o / 其他）
