@@ -107,21 +107,21 @@ evaluation_criteria:
 
 | # | 任务 | 状态 | 说明 |
 |---|------|------|------|
-| 1.1 | 设计 AgentLoop 核心类 | 🔲 待开始 | 参考 Harness 的 AgentLoop，适配 Java/Spring AI |
-| 1.2 | 实现 Tool 协议和注册机制 | 🔲 待开始 | Tool 接口、ToolRegistry、ToolResult |
-| 1.3 | 集成 Spring AI Function Calling | 🔲 待开始 | ChatClient 的 functions() 支持 |
-| 1.4 | 实现 generate_game 工具 | 🔲 待开始 | 从 UniversalGameAgent 抽取 |
-| 1.5 | 基本迭代逻辑 | 🔲 待开始 | Loop：LLM → tool_calls → execute → observe → continue |
-| 1.6 | 前端适配 | 🔲 待开始 | 支持多轮迭代的流式展示 |
+| 1.1 | 设计 AgentLoop 核心类 | ✅ 已完成 | `v2/loop/AgentLoop.java` + `WorkingMemory` + `AgentLoopResult` |
+| 1.2 | 实现 Tool 协议和注册机制 | ✅ 已完成 | `v2/tool/` 下 GameTool / ToolProfile / ToolResult / ToolRegistry |
+| 1.3 | 集成 Spring AI Function Calling | ✅ 已完成 | ChatClient + FunctionCallbackWrapper，待编译验证 |
+| 1.4 | 实现 generate_game 工具 | ✅ 已完成 | `v2/tools/GenerateGameTool.java`，从 UniversalGameAgent 抽取 |
+| 1.5 | 实现 list_skills / load_skill + Skill 系统 | ✅ 已完成 | `v2/tools/` + `v2/skill/` + `resources/skills/math_adventure.yaml` |
+| 1.6 | 集成到 Controller | ✅ 已完成 | `POST /api/game/v2/generate` 新端点，旧端点不变 |
+| 1.7 | 编译验证 | ⏳ 待验证 | 当前环境无 JDK，需在开发机上执行 `mvn compile` |
+| 1.8 | 前端适配 | 🔲 待开始 | 支持多轮迭代的流式展示 |
 
-### Phase 2：Skill 系统
+### Phase 2：Skill 系统扩展
 
 | # | 任务 | 状态 | 说明 |
 |---|------|------|------|
-| 2.1 | 设计 Skill 数据结构 | 🔲 待开始 | name/description/template/prompt/evaluation_criteria |
-| 2.2 | 迁移现有游戏为 Skill | 🔲 待开始 | Math/Memory/English/Traffic → Skill YAML |
-| 2.3 | 实现 load_skill 工具 | 🔲 待开始 | 从文件加载 Skill，注入上下文 |
-| 2.4 | 实现 list_skills 工具 | 🔲 待开始 | 列出可用 Skill |
+| 2.1 | 迁移 Memory/English/Traffic 游戏为 Skill | 🔲 待开始 | 目前只迁移了 Math → math_adventure.yaml |
+| 2.2 | 新增 shape_colors / logic_puzzle Skill | 🔲 待开始 | DESIGN.md 中规划的两个新 Skill |
 
 ### Phase 3：自主纠错与可玩性评估
 
@@ -146,7 +146,16 @@ evaluation_criteria:
 
 ## 3. 进度日志
 
-### 2026-03-28
+### 2026-03-28（下午）
+- **Phase 1 代码实现完成**（1.1 ~ 1.6）
+- 新增 `com.sumo.agent.v2` 包：loop / tool / tools / skill 四个子包，共 12 个新文件
+- AgentLoop 核心循环：ChatClient + FunctionCallbackWrapper + WorkingMemory
+- 工具协议：GameTool 接口 → ToolRegistry 自动发现 → 3 个工具实现
+- Skill 系统：SnakeYAML 加载 `resources/skills/*.yaml`，已迁移 math_adventure
+- Controller 集成：`POST /api/game/v2/generate` 新端点
+- ⚠️ 当前环境无 JDK，编译验证留待开发机执行
+
+### 2026-03-28（上午）
 - 创建 feat/agent-loop-upgrade 分支
 - 创建项目规划文档（PLAN.md）、实现文档（IMPL.md）、Review 文档（REVIEW.md）
 - ADR-001/002/003 全部确认：FC 用 Spring AI + DashScope，评估用 Headless Browser + 视觉模型，Skill 用 YAML
@@ -161,5 +170,8 @@ evaluation_criteria:
 - [x] ~~Skill 存储位置和格式确认~~ → YAML，`resources/skills/`
 - [ ] 前端是否需要同步升级（支持多轮迭代展示）
 - [ ] 是否需要支持用户中途干预迭代过程（"这个方向不对，换一种"）
+- [ ] Spring AI `FunctionCallbackWrapper` API 编译验证（不同子版本 API 可能有差异）
+- [ ] DashScope qwen-plus 是否支持 Function Calling（如不支持需切换模型）
+- [ ] SnakeYAML `Constructor` 对 camelCase 字段映射的兼容性验证
 - [ ] Playwright for Java 的版本和依赖确认
 - [ ] 视觉评估用哪个多模态模型（Qwen-VL / GPT-4o / 其他）

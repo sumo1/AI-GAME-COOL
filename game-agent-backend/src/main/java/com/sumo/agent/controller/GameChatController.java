@@ -5,6 +5,8 @@
 package com.sumo.agent.controller;
 
 import com.sumo.agent.core.GameGeneratorAgent;
+import com.sumo.agent.v2.loop.AgentLoop;
+import com.sumo.agent.v2.loop.AgentLoopResult;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,6 +31,9 @@ public class GameChatController {
     
     @Autowired
     private GameGeneratorAgent gameGeneratorAgent;
+
+    @Autowired
+    private AgentLoop agentLoop;
     
     /**
      * 生成游戏
@@ -97,6 +102,65 @@ public class GameChatController {
         });
     }
     
+    /**
+     * V2 游戏生成 — 基于 AgentLoop 多轮迭代
+     */
+    @PostMapping("/v2/generate")
+    public Mono<GameResponse> generateGameV2(@RequestBody GameRequest request) {
+        log.info("📨 [V2] 收到游戏生成请求: {}", request.getUserInput());
+
+        String sessionId = request.getSessionId();
+        if (sessionId == null) {
+            sessionId = UUID.randomUUID().toString();
+        }
+        final String finalSessionId = sessionId;
+
+        // 从 options 中提取 model key
+        String modelKey = null;
+        if (request.getOptions() != null) {
+            Object m = request.getOptions().get("model");
+            if (m instanceof String s) {
+                modelKey = s;
+            }
+        }
+        final String finalModelKey = modelKey;
+
+        return Mono.fromCallable(() -> {
+            AgentLoopResult result = agentLoop.run(request.getUserInput(), finalModelKey);
+
+            GameResponse response = new GameResponse();
+            response.setSessionId(finalSessionId);
+            response.setSuccess(result.success());
+
+            if (result.success()) {
+                Map<String, Object> gameData = new HashMap<>();
+                gameData.put("html", result.gameHtml());
+                gameData.put("type", "agent_loop");
+                gameData.put("generatedByLLM", true);
+                gameData.put("gameData", Map.of(
+                        "title", "AI 生成的游戏",
+                        "description", request.getUserInput(),
+                        "generated", true,
+                        "iterations", result.iterations(),
+                        "evalScore", result.evalScore()
+                ));
+
+                response.setGameData(gameData);
+                response.setAgentName("AgentLoop v2");
+                response.setAgentSource("llm");
+                response.setGeneratedByLLM(true);
+                response.setMessage(result.llmMessage() != null
+                        ? result.llmMessage()
+                        : "游戏生成成功！(迭代 " + result.iterations() + " 次)");
+            } else {
+                response.setError(result.error());
+                response.setMessage("游戏生成失败: " + result.error());
+            }
+
+            return response;
+        });
+    }
+
     /**
      * SSE流式生成游戏
      */

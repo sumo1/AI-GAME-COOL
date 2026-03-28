@@ -14,26 +14,115 @@
 
 ## 实现记录
 
-### [待开始] Phase 1.1 - AgentLoop 核心类设计
+### [已完成] Phase 1.1 - AgentLoop 核心类
 
-**目标**：设计并实现 AgentLoop 核心类，替代当前的 GameGeneratorAgent 编排逻辑
+**目标**：设计并实现 AgentLoop 核心类，支持多轮 Think-Act-Observe 迭代
 
-**参考**：Agent Harness 的 `AgentLoop` 类（TypeScript）
+**实现方案**：
 
-**适配要点**：
-- Agent Harness 用 TypeScript + async/await，需转换为 Java + Spring AI 的 ChatClient
-- Agent Harness 用 LLM Function Calling 原生协议，需确认 Spring AI 的支持程度
-- Agent Harness 有 12 个 DI port，我们先精简到核心需要的
+使用 Spring AI 的 `ChatClient` + `FunctionCallbackWrapper` 实现 Function Calling 驱动的 Agent Loop。每次请求创建新的 `WorkingMemory` 实例（无状态设计），通过 `ChatClient.builder(chatModel).defaultFunctions(callbacks)` 将工具注册到 LLM 调用中，Spring AI 自动处理 tool_calls 的内部循环。
 
-**预计文件变更**：
-- 新增：`core/AgentLoop.java` — 核心迭代循环
-- 新增：`core/Tool.java` — 工具接口
-- 新增：`core/ToolRegistry.java` — 工具注册中心（替代 agentRegistry）
-- 新增：`core/ToolResult.java` — 工具执行结果
-- 修改：`controller/GameChatController.java` — 接入新 AgentLoop
+**核心设计**：
+- `AgentLoop` 是 `@Service` 单例，但每次 `run()` 调用创建新的 `WorkingMemory`
+- 工具通过 `FunctionCallbackWrapper<String, String>` 包装，inputType = String.class 让 Spring AI 将 LLM 的 JSON arguments 作为原始字符串传入
+- 工具执行的副作用（如 generate_game 产出的 HTML）通过闭包捕获写入 WorkingMemory
+- 外层迭代循环（最多 5 轮）由 AgentLoop 控制，每轮更新系统提示词中的 WorkingMemory 上下文
+- 质量门禁：evalScore >= 80 或无评估（Phase 1 暂无 evaluate_game）时视为达标
 
-**状态**：等待 ADR-001 确认后开始
+**文件变更**：
+- 新增 `v2/loop/AgentLoop.java` — 核心迭代循环（@Service）
+- 新增 `v2/loop/WorkingMemory.java` — 工作记忆状态（game_version / eval_score / issue_count / iteration）
+- 新增 `v2/loop/AgentLoopResult.java` — 循环结果 record
 
 ---
 
-*（后续任务实现时在此追加记录）*
+### [已完成] Phase 1.2 - Tool 协议和注册机制
+
+**目标**：定义工具接口、描述、结果类型，以及通过 Spring @Component 自动发现的注册中心
+
+**实现方案**：
+
+- `GameTool` 接口定义两个方法：`getProfile()`（工具描述）和 `execute(String input)`（执行）
+- `ToolProfile` record 包含 name / description / parametersSchema（JSON Schema 格式）
+- `ToolResult` record 包含 success / data / error
+- `ToolRegistry` 通过 `@Autowired List<GameTool>` 自动收集所有 GameTool 组件
+
+**文件变更**：
+- 新增 `v2/tool/GameTool.java` — 工具接口
+- 新增 `v2/tool/ToolProfile.java` — 工具描述 record
+- 新增 `v2/tool/ToolResult.java` — 执行结果 record
+- 新增 `v2/tool/ToolRegistry.java` — 注册中心（@Component，@PostConstruct 自动发现）
+
+---
+
+### [已完成] Phase 1.3 - generate_game 工具
+
+**目标**：从 UniversalGameAgent 抽取游戏生成逻辑，实现为独立工具
+
+**实现方案**：
+
+- 输入 JSON: `{"design": "游戏设计描述", "skill_template": "可选的参考模板"}`
+- 内部调用 `ChatModelRouter.get(null)` 获取默认模型，构建 System + User Prompt 后调用 LLM
+- 复用 UniversalGameAgent 的 HTML 清洗逻辑（移除 markdown 代码块、补全 DOCTYPE/charset 等）
+- 如果提供了 skill_template，会截断到 3000 字符后注入系统提示词作为参考
+
+**文件变更**：
+- 新增 `v2/tools/GenerateGameTool.java` — @Component 实现 GameTool 接口
+
+---
+
+### [已完成] Phase 1.4 - list_skills 和 load_skill 工具 + Skill 系统
+
+**目标**：实现 Skill 加载系统，将 MathGameAgent 的模板迁移为 YAML Skill 文件
+
+**实现方案**：
+
+Skill 系统：
+- `SkillDefinition` POJO 映射 YAML 结构（name / displayName / description / ageGroup / template / promptHint / evaluationCriteria）
+- `SkillLoader` 使用 SnakeYAML 从 `classpath:skills/*.yaml` 加载所有 Skill 文件
+- 支持按关键词过滤（匹配 name / description / tags）
+
+工具实现：
+- `ListSkillsTool`: 输入 `{"filter": "数学"}`，返回匹配 Skill 的摘要列表 JSON
+- `LoadSkillTool`: 输入 `{"skill_name": "math_adventure"}`，返回完整 Skill 内容（Markdown 格式，含模板 HTML、生成提示、评估标准）
+
+Skill 迁移：
+- 从 `MathGameAgent` 提取完整的数学游戏 HTML 模板
+- 创建 `math_adventure.yaml`，包含完整可运行的 HTML 模板、生成提示词和评估标准
+- 模板改进：随机生成题目（JS 端动态生成）、鼓励性反馈、更好的响应式布局
+
+**文件变更**：
+- 新增 `v2/skill/SkillDefinition.java` — YAML 映射 POJO
+- 新增 `v2/skill/SkillLoader.java` — Skill 加载器（@Component）
+- 新增 `v2/tools/ListSkillsTool.java` — list_skills 工具
+- 新增 `v2/tools/LoadSkillTool.java` — load_skill 工具
+- 新增 `src/main/resources/skills/math_adventure.yaml` — 数学冒险 Skill
+
+---
+
+### [已完成] Phase 1.5 - 集成到 Controller
+
+**目标**：新增 `/api/game/v2/generate` 端点走 AgentLoop 路径，保留旧端点不动
+
+**实现方案**：
+
+- 在 `GameChatController` 中注入 `AgentLoop`
+- 新增 `@PostMapping("/v2/generate")` 方法
+- 复用已有的 `GameRequest` / `GameResponse` 数据类
+- 从 options 中提取 model key 传给 AgentLoop
+- 响应结构与 v1 兼容（gameData.html / agentName / agentSource 等字段保持一致）
+
+**文件变更**：
+- 修改 `controller/GameChatController.java` — 新增 import、注入 AgentLoop、新增 v2 endpoint
+
+---
+
+## 已知待验证事项
+
+1. **Spring AI API 兼容性**：`FunctionCallbackWrapper` 和 `ChatClient.builder().defaultFunctions()` 的 API 需要在有 JDK 环境时验证编译。Spring AI 1.0.0 的函数调用 API 在不同子版本可能有差异。
+2. **SnakeYAML SkillDefinition 映射**：YAML 字段名使用了 camelCase（如 `displayName`），需确认 SnakeYAML 的 `Constructor` 能正确映射。如果不行，需改为 snake_case 并在 POJO 中加 `@JsonProperty`。
+3. **DashScope Function Calling 支持**：qwen-plus 模型需要确认是否支持 function calling / tool use。如不支持，需切换到支持 FC 的模型（如 qwen-max）。
+
+---
+
+*（后续 Phase 实现时在此追加记录）*
