@@ -44,7 +44,8 @@ public class AgentLoop {
         }
 
         WorkingMemory memory = new WorkingMemory();
-        log.info("🔄 AgentLoop 启动, 用户输入: {}", userInput);
+        gameTools.setWorkingMemory(memory);
+        log.info("AgentLoop 启动, 用户输入: {}", userInput);
 
         for (int i = 0; i < MAX_ITERATIONS; i++) {
             memory.setIteration(i + 1);
