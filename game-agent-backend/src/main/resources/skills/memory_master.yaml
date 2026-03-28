@@ -1,0 +1,174 @@
+name: memory_master
+displayName: 记忆翻牌
+description: 卡片配对记忆游戏，翻开卡片找到相同的配对，锻炼记忆力，适合4-10岁儿童
+ageGroup: "4-10"
+difficulty:
+  - easy
+  - medium
+  - hard
+tags:
+  - 记忆力
+  - 配对
+  - 翻牌
+  - 观察力
+gameType: memory
+
+template: |
+  <!DOCTYPE html>
+  <html lang="zh-CN">
+  <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>记忆翻牌游戏</title>
+      <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: 'Comic Sans MS', cursive, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
+          .game-container { background: white; border-radius: 20px; padding: 30px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-width: 600px; width: 100%; }
+          h1 { text-align: center; color: #333; margin-bottom: 20px; font-size: 1.8em; }
+          .stats { display: flex; justify-content: space-around; margin-bottom: 20px; font-size: 16px; flex-wrap: wrap; gap: 8px; }
+          .stat { background: #f0f0f0; padding: 10px 20px; border-radius: 10px; }
+          .game-board { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; justify-content: center; margin-bottom: 20px; }
+          .card { aspect-ratio: 1; background: linear-gradient(45deg, #3498db, #2ecc71); border-radius: 12px; cursor: pointer; display: flex; justify-content: center; align-items: center; font-size: 2em; transition: transform 0.6s; transform-style: preserve-3d; position: relative; min-height: 80px; }
+          .card.flipped { transform: rotateY(180deg); }
+          .card.matched { background: linear-gradient(45deg, #f39c12, #e74c3c); pointer-events: none; animation: bounce 0.5s; }
+          .card-front, .card-back { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; display: flex; justify-content: center; align-items: center; border-radius: 12px; }
+          .card-front { background: linear-gradient(45deg, #3498db, #2ecc71); color: white; font-size: 1.5em; }
+          .card-back { background: white; transform: rotateY(180deg); font-size: 2em; }
+          @keyframes bounce { 0%, 100% { transform: rotateY(180deg) scale(1); } 50% { transform: rotateY(180deg) scale(1.1); } }
+          .win-message { display: none; text-align: center; margin-top: 20px; font-size: 1.4em; color: #27ae60; font-weight: bold; }
+          .win-message.show { display: block; }
+          .restart-btn { display: block; margin: 15px auto 0; background: #3498db; color: white; border: none; padding: 12px 24px; border-radius: 25px; font-size: 1.1em; cursor: pointer; }
+          .restart-btn:hover { background: #2980b9; }
+          .feedback { text-align: center; font-size: 1.1em; min-height: 1.5em; margin-top: 10px; }
+      </style>
+  </head>
+  <body>
+      <div class="game-container">
+          <h1>🎮 记忆翻牌游戏</h1>
+          <div class="stats">
+              <div class="stat">👆 步数: <span id="moves">0</span></div>
+              <div class="stat">🎯 配对: <span id="pairs">0</span>/<span id="totalPairs">6</span></div>
+              <div class="stat">⏱️ 时间: <span id="time">0</span>秒</div>
+          </div>
+          <div class="game-board" id="gameBoard"></div>
+          <div class="feedback" id="feedback"></div>
+          <div class="win-message" id="winMessage">
+              <p>🎉 恭喜你全部配对成功！</p>
+              <p id="finalStats"></p>
+          </div>
+          <button class="restart-btn" onclick="resetGame()">重新开始</button>
+      </div>
+      <script>
+          const PAIRS = 6;
+          const ICONS = ['🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯'];
+          let flippedCards = [], matchedPairs = 0, moves = 0, startTime, timerInterval;
+
+          function shuffle(arr) {
+              for (let i = arr.length - 1; i > 0; i--) {
+                  const j = Math.floor(Math.random() * (i + 1));
+                  [arr[i], arr[j]] = [arr[j], arr[i]];
+              }
+              return arr;
+          }
+
+          function createBoard() {
+              const board = document.getElementById('gameBoard');
+              board.innerHTML = '';
+              const icons = ICONS.slice(0, PAIRS);
+              const cards = shuffle([...icons, ...icons]);
+              document.getElementById('totalPairs').textContent = PAIRS;
+
+              cards.forEach((icon, idx) => {
+                  const card = document.createElement('div');
+                  card.className = 'card';
+                  card.dataset.icon = icon;
+                  card.dataset.index = idx;
+                  card.innerHTML = '<div class="card-front">?</div><div class="card-back">' + icon + '</div>';
+                  card.addEventListener('click', flipCard);
+                  board.appendChild(card);
+              });
+          }
+
+          function flipCard() {
+              if (flippedCards.length >= 2 || this.classList.contains('flipped') || this.classList.contains('matched')) return;
+              this.classList.add('flipped');
+              flippedCards.push(this);
+
+              if (flippedCards.length === 2) {
+                  moves++;
+                  document.getElementById('moves').textContent = moves;
+                  checkMatch();
+              }
+          }
+
+          function checkMatch() {
+              const [c1, c2] = flippedCards;
+              const match = c1.dataset.icon === c2.dataset.icon;
+              const fb = document.getElementById('feedback');
+
+              setTimeout(() => {
+                  if (match) {
+                      c1.classList.add('matched');
+                      c2.classList.add('matched');
+                      matchedPairs++;
+                      document.getElementById('pairs').textContent = matchedPairs;
+                      fb.textContent = '🎉 找到一对！';
+
+                      if (matchedPairs === PAIRS) endGame();
+                  } else {
+                      c1.classList.remove('flipped');
+                      c2.classList.remove('flipped');
+                      fb.textContent = '💪 再试试！';
+                  }
+                  flippedCards = [];
+              }, 800);
+          }
+
+          function endGame() {
+              clearInterval(timerInterval);
+              const elapsed = Math.floor((Date.now() - startTime) / 1000);
+              const msg = moves <= PAIRS * 2 ? '🌟 记忆力超强！太厉害了！' : moves <= PAIRS * 3 ? '👍 做得很好！继续加油！' : '💪 多练习记忆力会越来越好！';
+              document.getElementById('finalStats').textContent = '用了 ' + moves + ' 步，花了 ' + elapsed + ' 秒。' + msg;
+              document.getElementById('winMessage').classList.add('show');
+          }
+
+          function updateTimer() {
+              document.getElementById('time').textContent = Math.floor((Date.now() - startTime) / 1000);
+          }
+
+          function resetGame() {
+              flippedCards = [];
+              matchedPairs = 0;
+              moves = 0;
+              startTime = Date.now();
+              document.getElementById('moves').textContent = '0';
+              document.getElementById('pairs').textContent = '0';
+              document.getElementById('time').textContent = '0';
+              document.getElementById('feedback').textContent = '';
+              document.getElementById('winMessage').classList.remove('show');
+              createBoard();
+              clearInterval(timerInterval);
+              timerInterval = setInterval(updateTimer, 1000);
+          }
+
+          resetGame();
+      </script>
+  </body>
+  </html>
+
+promptHint: |
+  参考此模板的结构和交互模式，但根据用户的具体需求调整：
+  - 卡片主题（动物/太空/海洋/恐龙/超级英雄等 emoji）
+  - 卡片对数（简单6对/中等8对/困难10对）
+  - 网格布局（3×4 / 4×4 / 4×5）
+  - 是否添加倒计时模式
+  - 翻转动画速度和匹配检测延迟
+
+evaluationCriteria:
+  - 卡片是否能正确翻转并显示内容
+  - 匹配成功/失败是否有明确的视觉反馈
+  - 同时只能翻开两张卡片，不能多翻
+  - 已匹配的卡片不能再次点击
+  - 步数和配对数是否正确计数
+  - 全部配对后是否显示完成提示和鼓励语
+  - 重新开始后卡片是否重新随机排列
