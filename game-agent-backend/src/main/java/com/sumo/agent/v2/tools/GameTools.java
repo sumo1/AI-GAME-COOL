@@ -1,6 +1,8 @@
 package com.sumo.agent.v2.tools;
 
 import com.sumo.agent.config.ChatModelRouter;
+import com.sumo.agent.v2.evaluate.GameEvaluator;
+import com.sumo.agent.v2.evaluate.ProbeReport;
 import com.sumo.agent.v2.loop.WorkingMemory;
 import com.sumo.agent.v2.skill.SkillDefinition;
 import com.sumo.agent.v2.skill.SkillLoader;
@@ -14,6 +16,7 @@ import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -35,6 +38,12 @@ public class GameTools {
 
     @Autowired
     private ChatModelRouter chatModelRouter;
+
+    @Autowired
+    private GameEvaluator gameEvaluator;
+
+    /** 累计修复次数，第 4 次起全量重写 */
+    private int fixCount = 0;
 
     /** 当前迭代的 WorkingMemory，由 AgentLoop 在每次 run() 时设置 */
     private WorkingMemory workingMemory;
@@ -159,6 +168,128 @@ public class GameTools {
         }
     }
 
+    @Tool(description = "评估生成的 HTML5 游戏的可玩性和质量。使用 headless 浏览器渲染游戏，模拟操作，检测 JS 错误、元素越界、交互响应性等。返回结构化的评估报告和各维度评分。")
+    public String evaluateGame(
+            @ToolParam(description = "要评估的完整 HTML 游戏代码") String htmlCode) {
+        log.info("[evaluateGame] 开始评估游戏 ({} 字符)", htmlCode.length());
+
+        try {
+            ProbeReport report = gameEvaluator.evaluate(htmlCode);
+
+            // 更新 WorkingMemory
+            if (workingMemory != null) {
+                workingMemory.setEvalScore(report.getTotalScore());
+                List<String> openIssues = workingMemory.getOpenIssues();
+                openIssues.clear();
+                if (report.getIssues() != null) {
+                    openIssues.addAll(report.getIssues());
+                }
+                workingMemory.setIssueCount(openIssues.size());
+                log.info("WorkingMemory 已更新: evalScore={}, issues={}", report.getTotalScore(), openIssues.size());
+            }
+
+            // 构建评估报告文本
+            return buildEvalReportText(report);
+
+        } catch (Exception e) {
+            log.error("[evaluateGame] 评估失败", e);
+            return "游戏评估失败: " + e.getMessage();
+        }
+    }
+
+    private String buildEvalReportText(ProbeReport report) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("## 游戏评估报告\n\n");
+        sb.append("**总分: ").append(report.getTotalScore()).append("/100**\n\n");
+        sb.append("| 维度 | 得分 |\n|------|------|\n");
+        sb.append("| 可运行性 | ").append(report.getRunnabilityScore()).append("/20 |\n");
+        sb.append("| 布局正确性 | ").append(report.getLayoutScore()).append("/20 |\n");
+        sb.append("| 交互响应性 | ").append(report.getInteractivityScore()).append("/20 |\n");
+        sb.append("| 游戏完整性 | ").append(report.getCompletenessScore()).append("/20 |\n");
+        sb.append("| 教育匹配度 | ").append(report.getEducationScore()).append("/20 |\n\n");
+
+        if (report.getIssues() != null && !report.getIssues().isEmpty()) {
+            sb.append("### 发现的问题\n");
+            for (String issue : report.getIssues()) {
+                sb.append("- ").append(issue).append("\n");
+            }
+            sb.append("\n");
+        }
+
+        // 附加 Probe 摘要信息
+        sb.append("### Probe 数据摘要\n");
+        sb.append("- 页面加载: ").append(report.isPageLoaded() ? "成功" : "失败").append("\n");
+        sb.append("- JS 错误数: ").append(report.getErrors() != null ? report.getErrors().size() : 0).append("\n");
+        sb.append("- 交互事件数: ").append(report.getEvents() != null ? report.getEvents().size() : 0).append("\n");
+        sb.append("- DOM 变化次数: ").append(report.getDomMutationsCount()).append("\n");
+        sb.append("- 状态转换: ").append(report.getStateTransitions() != null ? report.getStateTransitions() : "无").append("\n");
+        sb.append("- 越界元素数: ").append(report.getOutOfBoundsElements() != null ? report.getOutOfBoundsElements().size() : 0).append("\n");
+
+        if (report.getFinalState() != null) {
+            sb.append("- 最终分数: ").append(report.getFinalState().getScore()).append("\n");
+        }
+
+        return sb.toString();
+    }
+
+    @Tool(description = "修复游戏中发现的问题。根据评估报告中的问题列表，对 HTML 游戏代码进行增量修补。如果是第4次及以上修复，则全量重写。")
+    public String fixGame(
+            @ToolParam(description = "需要修复的问题描述，来自评估报告") String issueDescription) {
+        log.info("[fixGame] 修复第 {} 次, 问题: {}", fixCount + 1, issueDescription);
+
+        if (workingMemory == null || workingMemory.getGameHtml() == null) {
+            return "错误：没有可修复的游戏 HTML。请先调用 generateGame 生成游戏。";
+        }
+
+        ChatModel model = chatModelRouter.get(null);
+        if (model == null) {
+            return "错误：未配置可用的 ChatModel";
+        }
+
+        fixCount++;
+        String currentHtml = workingMemory.getGameHtml();
+        boolean fullRewrite = fixCount >= 4;
+
+        try {
+            String systemPrompt = fullRewrite ? FIX_FULL_REWRITE_PROMPT : FIX_INCREMENTAL_PROMPT;
+            String userPrompt;
+            if (fullRewrite) {
+                userPrompt = "这是第 " + fixCount + " 次修复尝试，之前的增量修补未能解决所有问题，请全量重写。\n\n"
+                        + "需要修复的问题：\n" + issueDescription + "\n\n"
+                        + "当前有问题的 HTML：\n" + currentHtml;
+            } else {
+                userPrompt = "请修复以下问题（只修改有问题的部分，保持其他代码不变）：\n\n"
+                        + "问题列表：\n" + issueDescription + "\n\n"
+                        + "当前 HTML 代码：\n" + currentHtml;
+            }
+
+            Prompt prompt = new Prompt(List.of(
+                    new SystemMessage(systemPrompt),
+                    new UserMessage(userPrompt)
+            ));
+
+            String fixedHtml = model.call(prompt).getResult().getOutput().getText();
+            fixedHtml = cleanHtml(fixedHtml);
+
+            // 更新 WorkingMemory
+            workingMemory.setGameHtml(fixedHtml);
+            workingMemory.incrementGameVersion();
+            log.info("[fixGame] 修复完成 ({}), 版本: {}, HTML 长度: {}",
+                    fullRewrite ? "全量重写" : "增量修补", workingMemory.getGameVersion(), fixedHtml.length());
+
+            return fixedHtml;
+
+        } catch (Exception e) {
+            log.error("[fixGame] 修复失败", e);
+            return "游戏修复失败: " + e.getMessage();
+        }
+    }
+
+    /** 重置修复计数（每次新的 AgentLoop 运行时调用） */
+    public void resetFixCount() {
+        this.fixCount = 0;
+    }
+
     private String cleanHtml(String html) {
         if (html == null) return "";
         html = html.replaceAll("```html\\s*", "");
@@ -176,6 +307,33 @@ public class GameTools {
         }
         return html;
     }
+
+    private static final String FIX_INCREMENTAL_PROMPT = """
+            你是一个 HTML5 游戏修复专家。请根据问题列表对游戏代码进行增量修补。
+
+            修复原则：
+            1. 只修改有问题的部分，不要重写整个游戏
+            2. 保持原有的游戏逻辑和视觉风格
+            3. 确保修复后的代码仍然是完整可运行的 HTML 文件
+            4. 所有样式和脚本内联，不依赖外部资源
+
+            输出格式：只输出修复后的完整 HTML（从 <!DOCTYPE html> 到 </html>），不要包含解释。
+            """;
+
+    private static final String FIX_FULL_REWRITE_PROMPT = """
+            你是一个 HTML5 游戏开发专家。之前的游戏代码经过多次修补仍有问题，请从零重写。
+
+            重写原则：
+            1. 保持原始的游戏设计意图和教育目标
+            2. 使用更简洁、健壮的代码结构
+            3. 确保所有交互元素都有正确的事件处理
+            4. 确保布局响应式，元素不超出可见区域
+            5. 必须有明确的游戏开始和结束状态
+            6. 必须有计分系统
+            7. 所有样式和脚本内联，不依赖外部资源
+
+            输出格式：只输出完整 HTML（从 <!DOCTYPE html> 到 </html>），不要包含解释。
+            """;
 
     private static final String GENERATE_SYSTEM_PROMPT = """
             你是一个专业的儿童教育游戏开发专家。请根据设计方案生成一个完整的 HTML5 教育小游戏。
