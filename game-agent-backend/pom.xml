@@ -108,6 +108,13 @@
             <artifactId>jakarta.annotation-api</artifactId>
         </dependency>
         
+        <!-- Playwright for headless browser game evaluation -->
+        <dependency>
+            <groupId>com.microsoft.playwright</groupId>
+            <artifactId>playwright</artifactId>
+            <version>1.49.0</version>
+        </dependency>
+
         <!-- Test -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
