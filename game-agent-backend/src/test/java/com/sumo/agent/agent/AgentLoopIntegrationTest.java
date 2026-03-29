@@ -3,8 +3,7 @@ package com.sumo.agent.agent;
 import com.sumo.agent.agent.evaluation.GameEvaluator;
 import com.sumo.agent.agent.evaluation.ProbeReport;
 import com.sumo.agent.agent.loop.WorkingMemory;
-import com.sumo.agent.agent.skill.SkillDefinition;
-import com.sumo.agent.agent.skill.SkillLoader;
+import com.sumo.agent.agent.skill.*;;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -219,6 +218,132 @@ class AgentLoopIntegrationTest {
             assertEquals("<html></html>", skill.getTemplate());
             assertEquals("提示", skill.getPromptHint());
             assertEquals(List.of("标准1"), skill.getEvaluationCriteria());
+        }
+    }
+
+    // ==================== Skill 接口测试 ====================
+
+    @Nested
+    @DisplayName("Skill 接口测试")
+    class SkillInterfaceTest {
+
+        @Test
+        @DisplayName("DefaultSkill 应从 SkillDefinition 派生评估检查")
+        void testDefaultSkillEvaluationChecks() {
+            SkillDefinition def = new SkillDefinition();
+            def.setName("test_quiz");
+            def.setGameType("quiz");
+            def.setEvaluationCriteria(List.of("答对/答错是否有明确反馈", "是否有计时功能"));
+
+            Skill skill = new DefaultSkill(def);
+            List<EvaluationCheck> checks = skill.getEvaluationChecks();
+
+            // 应包含通用检查（hasScoreDisplay, jsErrorsBelow, outOfBoundsBelow）+ 派生检查 + gameType 检查
+            assertTrue(checks.size() >= 3, "至少应有 3 项通用检查，实际: " + checks.size());
+        }
+
+        @Test
+        @DisplayName("EvaluationCheck.htmlMustContain 通过时返回 empty")
+        void testHtmlMustContainPass() {
+            var check = EvaluationCheck.htmlMustContain("score", "missing score");
+            var result = check.check("<div id='score'>0</div>", null);
+            assertTrue(result.isEmpty());
+        }
+
+        @Test
+        @DisplayName("EvaluationCheck.htmlMustContain 失败时返回 issue")
+        void testHtmlMustContainFail() {
+            var check = EvaluationCheck.htmlMustContain("score", "missing score");
+            var result = check.check("<div>hello</div>", null);
+            assertTrue(result.isPresent());
+            assertEquals("missing score", result.get());
+        }
+
+        @Test
+        @DisplayName("EvaluationCheck.hasScoreDisplay 能检测计分元素")
+        void testHasScoreDisplay() {
+            var check = EvaluationCheck.hasScoreDisplay();
+            assertTrue(check.check("<div>分数: 0</div>", null).isEmpty());
+            assertTrue(check.check("<span id='score'>100</span>", null).isEmpty());
+            assertTrue(check.check("<div>no scoring</div>", null).isPresent());
+        }
+
+        @Test
+        @DisplayName("EvaluationCheck.jsErrorsBelow 检测 JS 错误阈值")
+        void testJsErrorsBelow() {
+            var check = EvaluationCheck.jsErrorsBelow(2);
+
+            // 无 report 时通过
+            assertTrue(check.check("", null).isEmpty());
+
+            // 少于阈值时通过
+            ProbeReport report = createBaseReport();
+            assertTrue(check.check("", report).isEmpty());
+
+            // 超过阈值时失败
+            List<ProbeReport.ProbeError> errors = new ArrayList<>();
+            for (int i = 0; i < 3; i++) {
+                var err = new ProbeReport.ProbeError();
+                err.setMsg("err" + i);
+                errors.add(err);
+            }
+            report.setErrors(errors);
+            assertTrue(check.check("", report).isPresent());
+        }
+
+        @Test
+        @DisplayName("DefaultSkill.getGenerationGuidance 包含 promptHint 和评估标准")
+        void testGenerationGuidance() {
+            SkillDefinition def = new SkillDefinition();
+            def.setPromptHint("生成数学游戏的提示");
+            def.setEvaluationCriteria(List.of("必须有计分", "必须有反馈"));
+
+            Skill skill = new DefaultSkill(def);
+            String guidance = skill.getGenerationGuidance();
+
+            assertTrue(guidance.contains("生成数学游戏的提示"));
+            assertTrue(guidance.contains("质量检查项"));
+            assertTrue(guidance.contains("必须有计分"));
+            assertTrue(guidance.contains("必须有反馈"));
+        }
+
+        @Test
+        @DisplayName("DefaultSkill.getFixHints 返回 YAML 定义的修复提示")
+        void testFixHints() {
+            SkillDefinition def = new SkillDefinition();
+            def.setFixHints(List.of(
+                    new FixHint("答案错误", "检查算术逻辑"),
+                    new FixHint("布局溢出", "限制容器高度")
+            ));
+
+            Skill skill = new DefaultSkill(def);
+            List<FixHint> hints = skill.getFixHints();
+
+            assertEquals(2, hints.size());
+            assertEquals("答案错误", hints.get(0).symptom());
+            assertEquals("检查算术逻辑", hints.get(0).solution());
+        }
+
+        @Test
+        @DisplayName("DefaultSkill.getFixHints 无 fixHints 时返回空列表")
+        void testEmptyFixHints() {
+            SkillDefinition def = new SkillDefinition();
+            Skill skill = new DefaultSkill(def);
+            assertTrue(skill.getFixHints().isEmpty());
+        }
+
+        private ProbeReport createBaseReport() {
+            ProbeReport report = new ProbeReport();
+            report.setPageLoaded(true);
+            report.setErrors(List.of());
+            report.setEvents(List.of());
+            report.setStateChanges(List.of());
+            report.setOutOfBoundsElements(List.of());
+            report.setStateTransitions(List.of());
+            report.setResponseLatencies(List.of());
+            report.setConsoleWarnings(List.of());
+            report.setDomMutationsCount(0);
+            return report;
         }
     }
 

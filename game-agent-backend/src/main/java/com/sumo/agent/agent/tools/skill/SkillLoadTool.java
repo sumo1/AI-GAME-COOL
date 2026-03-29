@@ -1,7 +1,9 @@
 package com.sumo.agent.agent.tools.skill;
 
+import com.sumo.agent.agent.skill.Skill;
 import com.sumo.agent.agent.skill.SkillDefinition;
 import com.sumo.agent.agent.skill.SkillLoader;
+import com.sumo.agent.agent.tools.ToolContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
@@ -11,7 +13,10 @@ import org.springframework.stereotype.Component;
 import java.util.Optional;
 
 /**
- * Skill 加载工具 — 加载指定名称的游戏技能模板
+ * Skill 加载工具 — 加载指定名称的游戏技能模板，同时激活 Skill 策略。
+ * <p>
+ * 加载成功后将 Skill 实例设置到 ToolContext.activeSkill，
+ * 后续的 generateGame / evaluateGame / fixGame 会自动使用该 Skill 的策略。
  */
 @Slf4j
 @Component
@@ -19,6 +24,9 @@ public class SkillLoadTool {
 
     @Autowired
     private SkillLoader skillLoader;
+
+    @Autowired
+    private ToolContext toolContext;
 
     @Tool(description = "加载指定名称的游戏技能模板，获取完整的 HTML 模板代码、生成提示词和评估标准。用于参考已有模板来生成新游戏。")
     public String loadSkill(
@@ -35,27 +43,34 @@ public class SkillLoadTool {
                 return "未找到 Skill: " + skillName + "。请调用 listSkills 查看可用的 Skill 列表。";
             }
 
-            SkillDefinition skill = opt.get();
+            // 激活 Skill 策略实例
+            Optional<Skill> skillOpt = skillLoader.getSkillInstance(skillName);
+            skillOpt.ifPresent(skill -> {
+                toolContext.setActiveSkill(skill);
+                log.info("[loadSkill] 已激活 Skill 策略: {} ({}项检查, {}项修复提示)",
+                        skillName, skill.getEvaluationChecks().size(), skill.getFixHints().size());
+            });
+
+            SkillDefinition def = opt.get();
             StringBuilder sb = new StringBuilder();
-            sb.append("# Skill: ").append(skill.getDisplayName()).append("\n\n");
-            sb.append("**描述**: ").append(skill.getDescription()).append("\n");
-            sb.append("**年龄段**: ").append(skill.getAgeGroup()).append("\n");
-            sb.append("**游戏类型**: ").append(skill.getGameType()).append("\n\n");
+            sb.append("# Skill: ").append(def.getDisplayName()).append("\n\n");
+            sb.append("**描述**: ").append(def.getDescription()).append("\n");
+            sb.append("**年龄段**: ").append(def.getAgeGroup()).append("\n");
+            sb.append("**游戏类型**: ").append(def.getGameType()).append("\n\n");
 
-            if (skill.getPromptHint() != null) {
-                sb.append("## 生成提示\n").append(skill.getPromptHint()).append("\n\n");
-            }
-
-            if (skill.getEvaluationCriteria() != null && !skill.getEvaluationCriteria().isEmpty()) {
-                sb.append("## 评估标准\n");
-                for (String c : skill.getEvaluationCriteria()) {
-                    sb.append("- ").append(c).append("\n");
+            // 输出 Skill 生成引导（不是简单的 promptHint，而是增强版）
+            Skill skill = skillOpt.orElse(null);
+            if (skill != null) {
+                String guidance = skill.getGenerationGuidance();
+                if (guidance != null && !guidance.isBlank()) {
+                    sb.append("## 生成引导\n").append(guidance).append("\n\n");
                 }
-                sb.append("\n");
+            } else if (def.getPromptHint() != null) {
+                sb.append("## 生成提示\n").append(def.getPromptHint()).append("\n\n");
             }
 
-            if (skill.getTemplate() != null) {
-                sb.append("## HTML 模板\n```html\n").append(skill.getTemplate()).append("\n```\n");
+            if (def.getTemplate() != null) {
+                sb.append("## HTML 模板\n```html\n").append(def.getTemplate()).append("\n```\n");
             }
 
             return sb.toString();

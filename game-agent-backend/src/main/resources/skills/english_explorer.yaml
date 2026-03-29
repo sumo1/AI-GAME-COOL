@@ -321,3 +321,11 @@ evaluationCriteria:
   - 答对/答错是否有明确反馈
   - 计分和连击系统是否正确
   - 游戏完成后是否显示正确率和鼓励语
+
+fixHints:
+  - symptom: 单词显示乱码
+    solution: 确保 HTML meta charset=UTF-8，JS 字符串使用 Unicode 转义或直接 UTF-8 编码
+  - symptom: 拼写验证不准确
+    solution: 将用户输入和正确答案都 trim() 并 toLowerCase() 后再比较
+  - symptom: 提示音效无法播放
+    solution: 浏览器自动播放策略限制，需在用户交互后才能播放音频，添加 click 事件触发

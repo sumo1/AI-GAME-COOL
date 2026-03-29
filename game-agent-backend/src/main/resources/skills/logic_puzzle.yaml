@@ -257,3 +257,11 @@ evaluationCriteria:
   - 题目难度是否匹配8-12岁认知水平
   - 计分和进度显示是否正确
   - 游戏完成后是否有成绩评价和鼓励
+
+fixHints:
+  - symptom: 谜题无解或多解
+    solution: 在生成谜题后验证唯一解，使用回溯算法确认有且仅有一个正确答案
+  - symptom: 提示功能无效
+    solution: 检查提示逻辑是否正确排除已知信息，确保提示后缩小解空间
+  - symptom: 难度等级无区分
+    solution: 通过控制变量数量和约束条件数量来区分 easy/medium/hard

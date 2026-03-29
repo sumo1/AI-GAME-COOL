@@ -174,3 +174,11 @@ evaluationCriteria:
   - 题目是否随机生成（非固定题库）
   - 游戏区域内所有元素是否在可见范围内
   - 是否有鼓励性的结束语
+
+fixHints:
+  - symptom: 答案计算错误
+    solution: 检查 JS 算术逻辑，确保使用 parseInt() 而非字符串拼接，验证运算符与期望结果一致
+  - symptom: 难度不递进
+    solution: 检查题目生成函数，确保数值范围随答对次数递增
+  - symptom: 计分不更新
+    solution: 确保 score 变量在答题正确时递增，且 DOM 中显示分数的元素实时更新

@@ -182,3 +182,11 @@ evaluationCriteria:
   - 全部配对后是否有胜利提示
   - 重新开始是否能正确重置游戏状态
   - 所有卡片在可见区域内，不越界
+
+fixHints:
+  - symptom: 翻牌动画卡死
+    solution: 检查 CSS transition 和 JS 状态锁，确保翻牌完成后 isFlipping 标志重置
+  - symptom: 配对逻辑错误
+    solution: 验证卡片匹配判断使用 data 属性而非 DOM 位置，确保同一张卡片不能自我配对
+  - symptom: 卡片布局溢出
+    solution: 使用 CSS Grid 并限制 grid 容器高度，避免 aspect-ratio 导致卡片撑出视口

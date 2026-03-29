@@ -10,12 +10,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 
+import com.sumo.agent.agent.skill.EvaluationCheck;
+
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * 游戏评估引擎 — 使用 Playwright headless 浏览器渲染游戏并收割 Probe 数据
@@ -75,6 +78,69 @@ public class GameEvaluator {
         // 计算评分
         computeScores(report);
         return report;
+    }
+
+    /**
+     * 评估 HTML 游戏代码（带 Skill 特定检查）
+     *
+     * @param htmlCode 完整的 HTML 游戏代码
+     * @param skillChecks Skill 提供的可执行检查列表
+     * @return ProbeReport 结构化评估报告（含通用评分 + Skill 检查结果）
+     */
+    public ProbeReport evaluate(String htmlCode, List<EvaluationCheck> skillChecks) {
+
+        // 先执行通用评估
+        ProbeReport report = evaluate(htmlCode);
+
+        // 再执行 Skill 特定检查
+        if (skillChecks != null && !skillChecks.isEmpty()) {
+            runSkillChecks(htmlCode, report, skillChecks);
+        }
+
+        return report;
+    }
+
+    /**
+     * 执行 Skill 特定的代码级检查，将发现的问题追加到 report.issues
+     */
+    private void runSkillChecks(String htmlCode, ProbeReport report, List<EvaluationCheck> checks) {
+        List<String> existingIssues = report.getIssues();
+        if (existingIssues == null) {
+            existingIssues = new ArrayList<>();
+        }
+
+        int skillIssueCount = 0;
+        for (EvaluationCheck check : checks) {
+            try {
+                Optional<String> issue = check.check(htmlCode, report);
+                if (issue.isPresent()) {
+                    existingIssues.add(issue.get());
+                    skillIssueCount++;
+                }
+            } catch (Exception e) {
+                log.warn("Skill 检查执行异常: {}", e.getMessage());
+            }
+        }
+
+        report.setIssues(existingIssues);
+
+        // Skill 检查结果影响教育匹配度评分（原来固定 15 分，现在根据 Skill 检查动态调整）
+        if (skillIssueCount == 0) {
+            report.setEducationScore(20); // Skill 检查全部通过，满分
+        } else if (skillIssueCount <= 2) {
+            report.setEducationScore(15); // 少量问题
+        } else {
+            report.setEducationScore(10); // 较多 Skill 特定问题
+        }
+
+        // 重新计算总分
+        int total = report.getRunnabilityScore() + report.getLayoutScore()
+                + report.getInteractivityScore() + report.getCompletenessScore()
+                + report.getEducationScore();
+        report.setTotalScore(total);
+
+        log.info("Skill 检查完成: {}项检查, {}项问题, 教育匹配度={}分, 新总分={}/100",
+                checks.size(), skillIssueCount, report.getEducationScore(), total);
     }
 
     /**

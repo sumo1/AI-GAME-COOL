@@ -203,3 +203,11 @@ evaluationCriteria:
   - 所有元素是否在可见区域内
   - 适合4-6岁幼儿的认知水平
   - 鼓励式反馈（失败时不惩罚）
+
+fixHints:
+  - symptom: 形状颜色与题目不匹配
+    solution: 确保随机生成题目时，正确答案包含在选项列表中且位置随机化
+  - symptom: 拖拽功能在移动端失效
+    solution: 同时监听 touch 和 mouse 事件，使用 e.touches[0] 获取触摸坐标
+  - symptom: 选项按钮点击无响应
+    solution: 检查事件委托是否正确，确保动态生成的按钮也绑定了点击事件

@@ -3,6 +3,8 @@ package com.sumo.agent.agent.tools.evaluation;
 import com.sumo.agent.agent.evaluation.GameEvaluator;
 import com.sumo.agent.agent.evaluation.ProbeReport;
 import com.sumo.agent.agent.loop.WorkingMemory;
+import com.sumo.agent.agent.skill.EvaluationCheck;
+import com.sumo.agent.agent.skill.Skill;
 import com.sumo.agent.agent.tools.ToolContext;
 import com.sumo.agent.agent.tools.generation.ErrorClassifier;
 import lombok.extern.slf4j.Slf4j;
@@ -39,7 +41,16 @@ public class GameEvaluationTool {
         // 超时保护：Playwright 评估最多 30 秒
         ExecutorService executor = Executors.newSingleThreadExecutor();
         try {
-            Future<ProbeReport> future = executor.submit(() -> gameEvaluator.evaluate(htmlCode));
+            // 获取 Skill 特定的评估检查（如果有 activeSkill）
+            Skill activeSkill = toolContext.getActiveSkill();
+            List<EvaluationCheck> skillChecks = (activeSkill != null)
+                    ? activeSkill.getEvaluationChecks()
+                    : List.of();
+
+            Future<ProbeReport> future = executor.submit(() ->
+                    skillChecks.isEmpty()
+                            ? gameEvaluator.evaluate(htmlCode)
+                            : gameEvaluator.evaluate(htmlCode, skillChecks));
             ProbeReport report;
             try {
                 report = future.get(EVALUATE_TIMEOUT_MS, TimeUnit.MILLISECONDS);

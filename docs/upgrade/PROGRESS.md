@@ -11,6 +11,7 @@
 | **P3** | 自主纠错（Probe + Playwright + 评估） | ✅ 完成 | 100% | game-probe.js / GameEvaluator / evaluateGame / fixGame |
 | **P4** | 优化完善 | ✅ 完成 | 100% | 上下文管理/容错/性能/文档 |
 | **P5** | 工程结构重构 | ✅ 完成 | 100% | 领域驱动包结构 + GameTools 拆分 + v1 归档 |
+| **P6** | Skill 架构升级 | ✅ 完成 | 100% | Skill 从数据袋升级为可执行策略单元 |
 
 ---
 
@@ -66,4 +67,16 @@
 
 ---
 
-*最后更新：2026-03-29 13:00*
+## Phase 6 明细 ✅ 100%
+
+| 任务 | 状态 | 说明 |
+|------|------|------|
+| 6.1 Skill 接口体系 | ✅ | Skill 接口 + EvaluationCheck 函数式接口 + FixHint record + DefaultSkill |
+| 6.2 ToolContext 联动 | ✅ | ToolContext.activeSkill + SkillLoadTool 加载时激活 |
+| 6.3 评估器接入 | ✅ | GameEvaluator.evaluate(html, checks) 重载，Skill 检查影响教育匹配度评分 |
+| 6.4 生成/修复接入 | ✅ | 生成用 guidance 增强 prompt + 修复用 fixHints 注入策略 + 6 个 YAML 更新 |
+| 6.5 测试+文档 | ✅ | 8 个新测试用例覆盖 Skill 接口 + EvaluationCheck |
+
+---
+
+*最后更新：2026-03-29 17:00*

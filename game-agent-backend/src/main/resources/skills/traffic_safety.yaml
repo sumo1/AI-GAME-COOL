@@ -318,3 +318,11 @@ evaluationCriteria:
   - 关卡升级逻辑是否正确
   - 游戏规则说明是否清晰
   - 教育内容（交通规则）是否融入游戏过程
+
+fixHints:
+  - symptom: 碰撞检测不准确
+    solution: 使用 getBoundingClientRect() 做 AABB 矩形相交检测，不要用固定距离阈值
+  - symptom: 角色移动超出道路区域
+    solution: 在移动函数中添加边界约束，使用 Math.max/Math.min 限制坐标范围
+  - symptom: 交通信号灯状态不切换
+    solution: 检查 setInterval 定时器是否正确设置，确保红绿灯状态循环切换

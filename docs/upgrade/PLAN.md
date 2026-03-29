@@ -152,9 +152,33 @@ evaluation_criteria:
 | 5.4 | 拆分 GameTools | ✅ 已完成 | ToolContext + SkillListTool/SkillLoadTool + GameGenerationTool/GameFixTool + GameEvaluationTool |
 | 5.5 | v1 归档 + 清理 | ✅ 已完成 | core/analyzer/games/impl/ → legacy/ 并标记 @Deprecated |
 
+### Phase 6：Skill 架构升级（从数据袋到策略单元）
+
+**背景**：P1~P5 的 Skill 是退化实现——SkillDefinition 只是 YAML 数据袋，evaluation_criteria 字段定义了却从未被 GameEvaluator 使用。所有游戏类型共享相同的通用评估/修复逻辑，Skill 可被一个 prompt 替代。
+
+**目标**：Skill 升级为一等公民架构概念——可执行的策略单元，而非 prompt 素材。
+
+**核心设计**：
+- `Skill` 接口：封装生成引导 + 评估检查 + 修复策略
+- `EvaluationCheck` 函数式接口：可执行的代码级检查（不是文本）
+- `FixHint` record：结构化修复提示（症状 → 方案）
+- `DefaultSkill`：包装 SkillDefinition，从 YAML 数据派生基础行为
+- 评估/生成/修复工具全部接入 Skill 的策略方法
+
+| # | 任务 | 状态 | 说明 |
+|---|------|------|------|
+| 6.1 | Skill 接口体系 + DefaultSkill | 🔲 待开始 | Skill/EvaluationCheck/FixHint 接口定义 + DefaultSkill + SkillLoader 改造 |
+| 6.2 | ToolContext 携带 ActiveSkill | 🔲 待开始 | ToolContext.activeSkill + SkillLoadTool 联动 |
+| 6.3 | GameEvaluator 接入 Skill 检查 | 🔲 待开始 | evaluate(html, checks) 重载，Skill 检查注入评分 |
+| 6.4 | 生成/修复工具接入 Skill 引导 | 🔲 待开始 | 生成用 guidance 增强 prompt，修复用 fixHints 注入策略，更新 YAML |
+| 6.5 | 测试 + 文档收尾 | 🔲 待开始 | 更新测试、IMPL.md、PROGRESS.md |
+
 ---
 
 ## 3. 进度日志
+
+### 2026-03-29（下午·续）
+- **Phase 6 Skill 架构升级启动**
 
 ### 2026-03-29（下午）
 - **Phase 5 工程结构重构完成**（5.1 ~ 5.5）

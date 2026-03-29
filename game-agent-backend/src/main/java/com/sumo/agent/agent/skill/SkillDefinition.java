@@ -17,6 +17,7 @@ public class SkillDefinition {
     private String template;
     private String promptHint;
     private List<String> evaluationCriteria;
+    private List<FixHint> fixHints;
 
     // --- getters / setters ---
 
@@ -49,6 +50,9 @@ public class SkillDefinition {
 
     public List<String> getEvaluationCriteria() { return evaluationCriteria; }
     public void setEvaluationCriteria(List<String> evaluationCriteria) { this.evaluationCriteria = evaluationCriteria; }
+
+    public List<FixHint> getFixHints() { return fixHints; }
+    public void setFixHints(List<FixHint> fixHints) { this.fixHints = fixHints; }
 
     /**
      * 返回摘要信息（供 list_skills 使用）
