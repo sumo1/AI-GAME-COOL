@@ -29,24 +29,7 @@ public class DefaultSkill implements Skill {
      */
     @Override
     public String getGenerationGuidance() {
-
-        // SKILL.md 格式：instructions 就是完整的操作手册
-        if (definition.getInstructions() != null && !definition.getInstructions().isBlank()) {
-            return definition.getInstructions();
-        }
-
-        // 旧 YAML 格式回退
-        StringBuilder sb = new StringBuilder();
-        if (definition.getPromptHint() != null) {
-            sb.append(definition.getPromptHint()).append("\n\n");
-        }
-        if (definition.getEvaluationCriteria() != null && !definition.getEvaluationCriteria().isEmpty()) {
-            sb.append("## 此类游戏的质量检查项（生成时必须满足）\n");
-            for (String criterion : definition.getEvaluationCriteria()) {
-                sb.append("- ").append(criterion).append("\n");
-            }
-        }
-        return sb.toString();
+        return definition.getInstructions() != null ? definition.getInstructions() : "";
     }
 
     /**

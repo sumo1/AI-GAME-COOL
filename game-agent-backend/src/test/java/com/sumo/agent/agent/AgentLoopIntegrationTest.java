@@ -292,17 +292,16 @@ class AgentLoopIntegrationTest {
         }
 
         @Test
-        @DisplayName("DefaultSkill.getGenerationGuidance 包含 promptHint 和评估标准")
+        @DisplayName("DefaultSkill.getGenerationGuidance 返回 SKILL.md instructions")
         void testGenerationGuidance() {
             SkillDefinition def = new SkillDefinition();
-            def.setPromptHint("生成数学游戏的提示");
-            def.setEvaluationCriteria(List.of("必须有计分", "必须有反馈"));
+            def.setInstructions("# 数学冒险\n\n## 生成步骤\n1. 确定数值范围\n2. 调用 generateGame\n\n## 评估重点\n- 必须有计分\n- 必须有反馈");
 
             Skill skill = new DefaultSkill(def);
             String guidance = skill.getGenerationGuidance();
 
-            assertTrue(guidance.contains("生成数学游戏的提示"));
-            assertTrue(guidance.contains("质量检查项"));
+            assertTrue(guidance.contains("数学冒险"));
+            assertTrue(guidance.contains("生成步骤"));
             assertTrue(guidance.contains("必须有计分"));
             assertTrue(guidance.contains("必须有反馈"));
         }

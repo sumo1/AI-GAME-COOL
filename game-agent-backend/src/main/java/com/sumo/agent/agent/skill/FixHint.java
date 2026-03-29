@@ -5,14 +5,28 @@ package com.sumo.agent.agent.skill;
  * <p>
  * 与通用 fixGame prompt 的区别：这是 Skill 领域知识的编码，
  * 比如数学游戏知道"答案计算错误"的根因是 JS parseInt 问题。
- *
- * @param symptom  症状描述（如"答案计算错误"）
- * @param solution 修复方案（如"检查 JS 算术逻辑，确保使用 parseInt"）
+ * <p>
+ * 用 POJO 而非 record：SnakeYAML 需要 JavaBean 协议（无参构造 + setter）来反序列化。
  */
-public record FixHint(String symptom, String solution) {
+public class FixHint {
 
-    /** YAML 反序列化需要无参构造 */
-    public FixHint() {
-        this("", "");
+    private String symptom;
+    private String solution;
+
+    public FixHint() {}
+
+    public FixHint(String symptom, String solution) {
+        this.symptom = symptom;
+        this.solution = solution;
     }
+
+    public String symptom() { return symptom; }
+    public String solution() { return solution; }
+
+    // SnakeYAML 需要标准 getter/setter
+    public String getSymptom() { return symptom; }
+    public void setSymptom(String symptom) { this.symptom = symptom; }
+
+    public String getSolution() { return solution; }
+    public void setSolution(String solution) { this.solution = solution; }
 }

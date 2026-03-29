@@ -4,11 +4,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.stereotype.Component;
-import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.Yaml;
 
 import jakarta.annotation.PostConstruct;
-import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -16,12 +14,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Skill 加载器 — 支持两种格式：
- * <ol>
- *   <li><b>SKILL.md 目录</b>（AgentSkills.io 规范）: skills-v2/{name}/SKILL.md + assets/template.html</li>
- *   <li><b>YAML 文件</b>（旧格式，向后兼容）: skills/{name}.yaml</li>
- * </ol>
- * SKILL.md 优先：如果 skills-v2 中存在同名 Skill，忽略旧 YAML。
+ * Skill 加载器 — 从 classpath:skills/{name}/SKILL.md 加载 Skill（AgentSkills.io 规范）。
+ * <p>
+ * 每个 Skill 是一个目录：SKILL.md（frontmatter + 操作手册）+ assets/template.html（可选）。
  */
 @Slf4j
 @Component
@@ -32,17 +27,13 @@ public class SkillLoader {
 
     @PostConstruct
     public void init() {
-        loadSkillMdFormat();
-        loadYamlFormat();
+        loadSkills();
     }
 
-    /**
-     * 加载 SKILL.md 目录格式（优先）
-     */
-    private void loadSkillMdFormat() {
+    private void loadSkills() {
         try {
             PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
-            Resource[] skillMdFiles = resolver.getResources("classpath:skills-v2/*/SKILL.md");
+            Resource[] skillMdFiles = resolver.getResources("classpath:skills/*/SKILL.md");
 
             for (Resource skillMdResource : skillMdFiles) {
                 try {
@@ -64,8 +55,8 @@ public class SkillLoader {
                     Skill skill = new DefaultSkill(def);
                     skills.put(def.getName(), skill);
 
-                    log.info("加载 Skill (SKILL.md): {} ({}) [{}项检查, {}项修复提示]",
-                            def.getName(), def.getDescription() != null ? def.getDescription().substring(0, Math.min(30, def.getDescription().length())) + "..." : "?",
+                    log.info("加载 Skill: {} [{}项检查, {}项修复提示]",
+                            def.getName(),
                             skill.getEvaluationChecks().size(),
                             skill.getFixHints().size());
 
@@ -73,42 +64,10 @@ public class SkillLoader {
                     log.warn("加载 SKILL.md 失败: {}", skillMdResource.getFilename(), e);
                 }
             }
-        } catch (Exception e) {
-            log.warn("扫描 skills-v2 目录失败", e);
-        }
-    }
-
-    /**
-     * 加载旧 YAML 格式（向后兼容，跳过已由 SKILL.md 加载的）
-     */
-    private void loadYamlFormat() {
-        try {
-            PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
-            Resource[] resources = resolver.getResources("classpath:skills/*.yaml");
-
-            Yaml yaml = new Yaml(new org.yaml.snakeyaml.constructor.Constructor(SkillDefinition.class, new LoaderOptions()));
-
-            for (Resource resource : resources) {
-                try (InputStream is = resource.getInputStream()) {
-                    SkillDefinition def = yaml.load(is);
-                    if (def != null && def.getName() != null) {
-                        // 跳过已由 SKILL.md 加载的
-                        if (definitions.containsKey(def.getName())) {
-                            log.debug("跳过 YAML Skill {} (已由 SKILL.md 加载)", def.getName());
-                            continue;
-                        }
-                        definitions.put(def.getName(), def);
-                        skills.put(def.getName(), new DefaultSkill(def));
-                        log.info("加载 Skill (YAML): {} ({})", def.getName(), def.getDisplayName());
-                    }
-                } catch (Exception e) {
-                    log.warn("加载 YAML Skill 失败: {}", resource.getFilename(), e);
-                }
-            }
 
             log.info("Skill 加载完成，共 {} 个", skills.size());
         } catch (Exception e) {
-            log.warn("扫描 skills YAML 目录失败", e);
+            log.warn("扫描 skills 目录失败", e);
         }
     }
 
@@ -117,7 +76,6 @@ public class SkillLoader {
      */
     @SuppressWarnings("unchecked")
     private SkillDefinition parseSkillMd(String content) {
-        // 分离 frontmatter 和 body
         if (!content.startsWith("---")) return null;
         int secondDelim = content.indexOf("---", 3);
         if (secondDelim < 0) return null;
@@ -125,7 +83,6 @@ public class SkillLoader {
         String frontmatterYaml = content.substring(3, secondDelim).trim();
         String body = content.substring(secondDelim + 3).trim();
 
-        // 解析 frontmatter 为 Map
         Yaml yaml = new Yaml();
         Map<String, Object> fm = yaml.load(frontmatterYaml);
         if (fm == null) return null;
@@ -142,25 +99,19 @@ public class SkillLoader {
             def.setTags(((List<Object>) tagsObj).stream().map(String::valueOf).toList());
         }
 
-        // SKILL.md body 就是操作手册
         def.setInstructions(body);
-
         return def;
     }
 
-    /**
-     * 加载 assets/template.html
-     */
     private void loadTemplate(PathMatchingResourcePatternResolver resolver, SkillDefinition def) {
         try {
             Resource templateResource = resolver.getResource(
-                    "classpath:skills-v2/" + def.getName() + "/assets/template.html");
+                    "classpath:skills/" + def.getName() + "/assets/template.html");
             if (templateResource.exists()) {
                 def.setTemplate(templateResource.getContentAsString(StandardCharsets.UTF_8));
-                log.debug("加载模板: {}/assets/template.html ({} 字符)", def.getName(), def.getTemplate().length());
             }
         } catch (Exception e) {
-            log.debug("未找到模板文件: {}/assets/template.html", def.getName());
+            log.debug("未找到模板: {}/assets/template.html", def.getName());
         }
     }
 
@@ -171,24 +122,16 @@ public class SkillLoader {
         String body = def.getInstructions();
         if (body == null || body.isEmpty()) return;
 
-        // 解析 "## 评估重点" 段落中的列表项
         def.setEvaluationCriteria(parseListSection(body, "评估重点"));
-
-        // 解析 "## 常见问题" 段落中的 "**xxx** → yyy" 格式
         def.setFixHints(parseFixHintsSection(body));
     }
 
-    /**
-     * 从 Markdown body 中提取指定标题下的列表项
-     */
     private List<String> parseListSection(String body, String sectionTitle) {
-        // 找到 ## sectionTitle 开始的位置
         Pattern sectionPattern = Pattern.compile("^##\\s+" + Pattern.quote(sectionTitle) + "\\s*$", Pattern.MULTILINE);
         Matcher m = sectionPattern.matcher(body);
         if (!m.find()) return List.of();
 
         int start = m.end();
-        // 找到下一个 ## 标题或文档结束
         Pattern nextSection = Pattern.compile("^##\\s+", Pattern.MULTILINE);
         Matcher nextM = nextSection.matcher(body);
         int end = body.length();
@@ -197,21 +140,15 @@ public class SkillLoader {
         }
 
         String section = body.substring(start, end);
-
-        // 提取 "- xxx" 列表项
         List<String> items = new ArrayList<>();
         Pattern listItem = Pattern.compile("^-\\s+(.+)$", Pattern.MULTILINE);
         Matcher listM = listItem.matcher(section);
         while (listM.find()) {
             items.add(listM.group(1).trim());
         }
-
         return items;
     }
 
-    /**
-     * 从 "## 常见问题" 段落解析 FixHint（格式："**症状** → 方案"）
-     */
     private List<FixHint> parseFixHintsSection(String body) {
         Pattern sectionPattern = Pattern.compile("^##\\s+常见问题\\s*$", Pattern.MULTILINE);
         Matcher m = sectionPattern.matcher(body);
@@ -226,15 +163,12 @@ public class SkillLoader {
         }
 
         String section = body.substring(start, end);
-
-        // 匹配 "- **xxx** → yyy" 格式
         List<FixHint> hints = new ArrayList<>();
         Pattern hintPattern = Pattern.compile("-\\s+\\*\\*(.+?)\\*\\*\\s*[→\\->]+\\s*(.+)$", Pattern.MULTILINE);
         Matcher hintM = hintPattern.matcher(section);
         while (hintM.find()) {
             hints.add(new FixHint(hintM.group(1).trim(), hintM.group(2).trim()));
         }
-
         return hints;
     }
 
