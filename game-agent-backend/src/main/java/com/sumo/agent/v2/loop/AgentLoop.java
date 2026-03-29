@@ -1,12 +1,19 @@
 package com.sumo.agent.v2.loop;
 
 import com.sumo.agent.config.ChatModelRouter;
+import com.sumo.agent.v2.skill.SkillDefinition;
+import com.sumo.agent.v2.skill.SkillLoader;
 import com.sumo.agent.v2.tools.GameTools;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+
+import java.net.SocketTimeoutException;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 /**
  * Agent Loop 核心类 — 使用 Spring AI 原生 Function Calling
@@ -24,11 +31,33 @@ public class AgentLoop {
     private static final int MAX_ITERATIONS = 5;
     private static final int QUALITY_GATE_SCORE = 80;
 
+    /** LLM 调用最大重试次数 */
+    private static final int MAX_LLM_RETRIES = 2;
+    /** 初始重试间隔（毫秒） */
+    private static final long RETRY_BASE_DELAY_MS = 2000;
+
+    /** Skill 快速匹配关键词映射：关键词 → skill 名称 */
+    private static final Map<String, String> SKILL_KEYWORD_MAP = Map.of(
+            "数学冒险", "math_adventure",
+            "数学游戏", "math_adventure",
+            "加减法", "math_adventure",
+            "记忆翻牌", "memory_master",
+            "记忆游戏", "memory_master",
+            "翻牌配对", "memory_master",
+            "英语", "english_explorer",
+            "单词拼写", "english_explorer",
+            "交通安全", "traffic_safety",
+            "形状颜色", "shape_colors"
+    );
+
     @Autowired
     private ChatModelRouter chatModelRouter;
 
     @Autowired
     private GameTools gameTools;
+
+    @Autowired
+    private SkillLoader skillLoader;
 
     /**
      * 执行 Agent Loop
@@ -48,30 +77,20 @@ public class AgentLoop {
         gameTools.resetFixCount();
         log.info("AgentLoop 启动, 用户输入: {}", userInput);
 
+        // 快速路径：尝试预加载匹配的 Skill
+        tryPreloadSkill(userInput, memory);
+
         for (int i = 0; i < MAX_ITERATIONS; i++) {
             memory.setIteration(i + 1);
             log.info("🔄 迭代 {}/{}", i + 1, MAX_ITERATIONS);
 
             try {
                 String systemPrompt = buildSystemPrompt(memory);
-
-                // Spring AI Function Calling：
-                // ChatClient 自动处理多轮 FC 循环
-                // LLM 决定调用 listSkills/loadSkill/generateGame → 执行 → 返回结果 → LLM 继续
-                // 最终返回 LLM 的文本总结
-                ChatClient chatClient = ChatClient.create(chatModel);
-                String response = chatClient
-                        .prompt()
-                        .system(systemPrompt)
-                        .user(buildUserPrompt(userInput, memory))
-                        .tools(gameTools)
-                        .call()
-                        .content();
+                String response = callLlmWithRetry(chatModel, systemPrompt, buildUserPrompt(userInput, memory));
 
                 log.info("🤖 LLM 响应完成 ({} 字符)", response != null ? response.length() : 0);
 
-                // Phase 1: 单次调用已包含完整 FC 循环，直接返回
-                // Phase 3 会在此检查 eval_score 是否达标，决定是否继续迭代
+                // 质量门禁检查
                 if (memory.getEvalScore() == 0 || memory.getEvalScore() >= QUALITY_GATE_SCORE) {
                     log.info("✅ AgentLoop 完成, 迭代 {} 次", i + 1);
                     return AgentLoopResult.success(
@@ -105,6 +124,83 @@ public class AgentLoop {
         return AgentLoopResult.failure("达到最大迭代次数仍未生成游戏", MAX_ITERATIONS);
     }
 
+    /**
+     * 带重试的 LLM 调用：失败时最多重试 MAX_LLM_RETRIES 次，
+     * 仅对可恢复异常（超时、5xx）重试，间隔指数退避。
+     */
+    private String callLlmWithRetry(ChatModel chatModel, String systemPrompt, String userPrompt) {
+        Exception lastException = null;
+
+        for (int attempt = 0; attempt <= MAX_LLM_RETRIES; attempt++) {
+            try {
+                if (attempt > 0) {
+                    long delay = RETRY_BASE_DELAY_MS * (1L << (attempt - 1)); // 指数退避: 2s, 4s
+                    log.warn("🔁 LLM 调用重试 {}/{}，等待 {}ms", attempt, MAX_LLM_RETRIES, delay);
+                    Thread.sleep(delay);
+                }
+
+                ChatClient chatClient = ChatClient.create(chatModel);
+                return chatClient
+                        .prompt()
+                        .system(systemPrompt)
+                        .user(userPrompt)
+                        .tools(gameTools)
+                        .call()
+                        .content();
+
+            } catch (Exception e) {
+                lastException = e;
+                if (!isRetryable(e)) {
+                    log.error("❌ LLM 调用不可恢复异常，不再重试: {}", e.getMessage());
+                    throw new RuntimeException("LLM 调用失败（不可恢复）: " + e.getMessage(), e);
+                }
+                log.warn("⚠️ LLM 调用失败 (attempt {}): {}", attempt + 1, e.getMessage());
+            }
+        }
+
+        throw new RuntimeException("LLM 调用失败，已重试 " + MAX_LLM_RETRIES + " 次: " +
+                (lastException != null ? lastException.getMessage() : "未知错误"), lastException);
+    }
+
+    /**
+     * 判断异常是否可重试（超时、5xx 类服务端错误）
+     */
+    private boolean isRetryable(Exception e) {
+        if (e instanceof InterruptedException) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+        String msg = e.getMessage() != null ? e.getMessage().toLowerCase() : "";
+        // 超时类
+        if (e.getCause() instanceof SocketTimeoutException) return true;
+        if (msg.contains("timeout") || msg.contains("timed out")) return true;
+        // 5xx 服务端错误
+        if (msg.contains("500") || msg.contains("502") || msg.contains("503") || msg.contains("504")) return true;
+        if (msg.contains("server error") || msg.contains("service unavailable")) return true;
+        if (msg.contains("rate limit") || msg.contains("too many requests") || msg.contains("429")) return true;
+        return false;
+    }
+
+    /**
+     * 快速路径：根据用户输入关键词直接预加载匹配的 Skill，减少 LLM 工具调用轮次
+     */
+    private void tryPreloadSkill(String userInput, WorkingMemory memory) {
+        if (userInput == null || userInput.isBlank()) return;
+
+        for (Map.Entry<String, String> entry : SKILL_KEYWORD_MAP.entrySet()) {
+            if (userInput.contains(entry.getKey())) {
+                String skillName = entry.getValue();
+                Optional<SkillDefinition> skillOpt = skillLoader.getSkill(skillName);
+                if (skillOpt.isPresent()) {
+                    SkillDefinition skill = skillOpt.get();
+                    memory.setPreloadedSkill(skill.getName());
+                    log.info("⚡ 快速路径命中: '{}' → Skill '{}'({})", entry.getKey(), skillName, skill.getDisplayName());
+                    return;
+                }
+            }
+        }
+    }
+
     private String buildSystemPrompt(WorkingMemory memory) {
         return SEMANTIC_PROMPT + "\n\n" + memory.toContextXml();
     }
@@ -130,7 +226,7 @@ public class AgentLoop {
 
             ### 首次生成（迭代 1）
             1. **分析需求**：理解用户想要什么类型的游戏、适合什么年龄段、有什么教育目标
-            2. **查找技能模板**：调用 listSkills 查看是否有匹配的内置模板
+            2. **查找技能模板**：如果 working_memory 中已有 preloaded_skill，可以直接调用 loadSkill 加载，无需先调用 listSkills
             3. **加载模板**（可选）：如果有匹配的模板，调用 loadSkill 获取参考
             4. **生成游戏**：调用 generateGame 生成完整的 HTML5 游戏
             5. **评估游戏**：调用 evaluateGame 对生成的游戏进行质量评估
@@ -149,6 +245,7 @@ public class AgentLoop {
             - **evaluateGame**：传入 HTML 代码，返回评估报告（含评分和问题列表）
             - **fixGame**：传入问题描述，自动从工作记忆获取当前 HTML 并修复
             - 评估和修复会自动更新工作记忆中的游戏状态
+            - **注意**：如果 working_memory 中包含 html_summary，完整 HTML 可通过工具内部获取，不需要在对话中传递
 
             ## 游戏质量标准
 

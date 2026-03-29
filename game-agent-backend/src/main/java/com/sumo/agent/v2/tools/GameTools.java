@@ -10,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
@@ -19,11 +20,12 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.*;
 
 /**
  * 游戏工具集 — 使用 Spring AI @Tool 注解，支持原生 Function Calling
  * <p>
- * 包含三个工具：listSkills / loadSkill / generateGame
+ * 包含五个工具：listSkills / loadSkill / generateGame / evaluateGame / fixGame
  * Spring AI 自动将 @Tool 方法暴露给 LLM，LLM 决定何时调用哪个工具。
  * <p>
  * 每次 AgentLoop 运行时，通过 setWorkingMemory() 注入当前迭代的 WorkingMemory，
@@ -32,6 +34,9 @@ import java.util.Optional;
 @Slf4j
 @Component
 public class GameTools {
+
+    /** evaluateGame Playwright 超时（毫秒） */
+    private static final long EVALUATE_TIMEOUT_MS = 30_000;
 
     @Autowired
     private SkillLoader skillLoader;
@@ -149,7 +154,19 @@ public class GameTools {
                     new UserMessage("请根据以下设计方案生成游戏：\n\n" + gameDesign)
             ));
 
-            String html = model.call(prompt).getResult().getOutput().getText();
+            ChatResponse chatResponse = model.call(prompt);
+            if (chatResponse == null || chatResponse.getResult() == null
+                    || chatResponse.getResult().getOutput() == null) {
+                log.error("[generateGame] LLM 返回空内容");
+                return "错误：LLM 返回空内容，请重试";
+            }
+
+            String html = chatResponse.getResult().getOutput().getText();
+            if (html == null || html.isBlank()) {
+                log.error("[generateGame] LLM 返回空 HTML");
+                return "错误：LLM 返回空 HTML 内容，请重试";
+            }
+
             html = cleanHtml(html);
 
             // 更新 WorkingMemory
@@ -164,7 +181,8 @@ public class GameTools {
 
         } catch (Exception e) {
             log.error("[generateGame] 生成失败", e);
-            return "游戏生成失败: " + e.getMessage();
+            String errorType = classifyError(e);
+            return "游戏生成失败 [" + errorType + "]: " + e.getMessage();
         }
     }
 
@@ -173,8 +191,23 @@ public class GameTools {
             @ToolParam(description = "要评估的完整 HTML 游戏代码") String htmlCode) {
         log.info("[evaluateGame] 开始评估游戏 ({} 字符)", htmlCode.length());
 
+        // 超时保护：Playwright 评估最多 30 秒
+        ExecutorService executor = Executors.newSingleThreadExecutor();
         try {
-            ProbeReport report = gameEvaluator.evaluate(htmlCode);
+            Future<ProbeReport> future = executor.submit(() -> gameEvaluator.evaluate(htmlCode));
+            ProbeReport report;
+            try {
+                report = future.get(EVALUATE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+            } catch (TimeoutException e) {
+                future.cancel(true);
+                log.warn("[evaluateGame] Playwright 评估超时 ({}ms)，返回降级结果", EVALUATE_TIMEOUT_MS);
+                return buildDegradedEvalReport(htmlCode);
+            } catch (ExecutionException e) {
+                Throwable cause = e.getCause();
+                log.error("[evaluateGame] 评估执行异常", cause);
+                String errorType = classifyError(cause instanceof Exception ? (Exception) cause : e);
+                return "游戏评估失败 [" + errorType + "]: " + (cause != null ? cause.getMessage() : e.getMessage());
+            }
 
             // 更新 WorkingMemory
             if (workingMemory != null) {
@@ -188,13 +221,53 @@ public class GameTools {
                 log.info("WorkingMemory 已更新: evalScore={}, issues={}", report.getTotalScore(), openIssues.size());
             }
 
-            // 构建评估报告文本
             return buildEvalReportText(report);
 
-        } catch (Exception e) {
-            log.error("[evaluateGame] 评估失败", e);
-            return "游戏评估失败: " + e.getMessage();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return "游戏评估被中断";
+        } finally {
+            executor.shutdownNow();
         }
+    }
+
+    /**
+     * 构建降级评估报告（Playwright 超时时使用）
+     */
+    private String buildDegradedEvalReport(String htmlCode) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("## 游戏评估报告（降级模式 — Playwright 超时）\n\n");
+        sb.append("**注意**: 浏览器评估超时，以下为静态分析结果\n\n");
+
+        int score = 50; // 降级基础分
+        List<String> issues = new ArrayList<>();
+        issues.add("[评估] Playwright 超时，无法获取运行时数据，建议检查游戏是否有死循环或资源加载问题");
+
+        // 简单静态检查
+        if (!htmlCode.contains("<script")) {
+            score -= 20;
+            issues.add("[可运行性] 未发现 JavaScript 代码");
+        }
+        if (!htmlCode.contains("addEventListener") && !htmlCode.contains("onclick")) {
+            score -= 10;
+            issues.add("[交互] 未发现事件监听器");
+        }
+
+        sb.append("**估计总分: ").append(score).append("/100** (降级评估)\n\n");
+        sb.append("### 发现的问题\n");
+        for (String issue : issues) {
+            sb.append("- ").append(issue).append("\n");
+        }
+
+        // 更新 WorkingMemory
+        if (workingMemory != null) {
+            workingMemory.setEvalScore(score);
+            workingMemory.getOpenIssues().clear();
+            workingMemory.getOpenIssues().addAll(issues);
+            workingMemory.setIssueCount(issues.size());
+        }
+
+        return sb.toString();
     }
 
     private String buildEvalReportText(ProbeReport report) {
@@ -268,7 +341,19 @@ public class GameTools {
                     new UserMessage(userPrompt)
             ));
 
-            String fixedHtml = model.call(prompt).getResult().getOutput().getText();
+            ChatResponse chatResponse = model.call(prompt);
+            if (chatResponse == null || chatResponse.getResult() == null
+                    || chatResponse.getResult().getOutput() == null) {
+                log.error("[fixGame] LLM 返回空内容");
+                return "错误：LLM 返回空内容，保持当前版本不变";
+            }
+
+            String fixedHtml = chatResponse.getResult().getOutput().getText();
+            if (fixedHtml == null || fixedHtml.isBlank()) {
+                log.error("[fixGame] LLM 返回空 HTML");
+                return "错误：LLM 返回空 HTML，保持当前版本不变";
+            }
+
             fixedHtml = cleanHtml(fixedHtml);
 
             // 更新 WorkingMemory
@@ -281,13 +366,38 @@ public class GameTools {
 
         } catch (Exception e) {
             log.error("[fixGame] 修复失败", e);
-            return "游戏修复失败: " + e.getMessage();
+            String errorType = classifyError(e);
+            return "游戏修复失败 [" + errorType + "]: " + e.getMessage();
         }
     }
 
     /** 重置修复计数（每次新的 AgentLoop 运行时调用） */
     public void resetFixCount() {
         this.fixCount = 0;
+    }
+
+    /**
+     * 异常分类：区分网络异常 / LLM 空内容 / 业务逻辑错误
+     */
+    private String classifyError(Exception e) {
+        String msg = e.getMessage() != null ? e.getMessage().toLowerCase() : "";
+        if (msg.contains("timeout") || msg.contains("timed out")
+                || e.getCause() instanceof java.net.SocketTimeoutException) {
+            return "网络超时";
+        }
+        if (msg.contains("connection") || msg.contains("refused") || msg.contains("unreachable")) {
+            return "网络连接异常";
+        }
+        if (msg.contains("rate limit") || msg.contains("429") || msg.contains("too many")) {
+            return "API 限流";
+        }
+        if (msg.contains("401") || msg.contains("403") || msg.contains("unauthorized")) {
+            return "认证失败";
+        }
+        if (msg.contains("500") || msg.contains("502") || msg.contains("503")) {
+            return "服务端错误";
+        }
+        return "业务逻辑错误";
     }
 
     private String cleanHtml(String html) {
