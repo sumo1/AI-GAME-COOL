@@ -125,4 +125,92 @@ Skill 迁移：
 
 ---
 
-*（后续 Phase 实现时在此追加记录）*
+### [已完成] Phase 5 - 工程结构重构（领域驱动包结构）
+
+**目标**：将 v2/ 无语义包名 + v1 散落代码重构为领域驱动的清晰包结构
+
+**新包结构**：
+
+```
+com.sumo.agent/
+├── Application.java
+├── api/                          # REST 端点
+│   ├── GameChatController.java
+│   └── GameStorageController.java
+├── infra/                        # 基础设施
+│   ├── model/                    # LLM 模型配置
+│   │   ├── ChatModelRegistry.java  (原 ChatModelRouter)
+│   │   ├── DashScopeConfig.java
+│   │   ├── OpenAIConfig.java
+│   │   ├── DeepseekDashScopeConfig.java
+│   │   ├── KimiDashScopeConfig.java
+│   │   └── Qwen3CoderPlusConfig.java
+│   ├── config/                   # 应用配置
+│   │   ├── JacksonConfig.java
+│   │   └── RestClientConfig.java
+│   └── storage/                  # 存储
+│       ├── GameStorageService.java
+│       └── SavedGame.java
+├── knowledge/                    # RAG 知识层
+│   ├── VectorStore.java
+│   ├── GameKnowledgeRAG.java
+│   ├── InMemoryVectorStore.java
+│   ├── ElasticsearchVectorStore.java
+│   └── EmbeddedVectorStore.java
+├── agent/                        # Agent 核心域
+│   ├── loop/                     # 执行引擎
+│   │   ├── AgentLoop.java
+│   │   ├── AgentLoopResult.java
+│   │   └── WorkingMemory.java
+│   ├── tools/                    # 工具层（拆分自 GameTools）
+│   │   ├── ToolContext.java
+│   │   ├── skill/
+│   │   │   ├── SkillListTool.java
+│   │   │   └── SkillLoadTool.java
+│   │   ├── generation/
+│   │   │   ├── GameGenerationTool.java
+│   │   │   ├── GameFixTool.java
+│   │   │   ├── HtmlCleaner.java
+│   │   │   └── ErrorClassifier.java
+│   │   └── evaluation/
+│   │       └── GameEvaluationTool.java
+│   ├── skill/                    # Skill 管理
+│   │   ├── SkillDefinition.java
+│   │   └── SkillLoader.java
+│   └── evaluation/               # 游戏评估
+│       ├── GameEvaluator.java
+│       └── ProbeReport.java
+└── legacy/                       # v1 遗留（@Deprecated）
+    ├── core/
+    ├── analyzer/
+    ├── games/
+    └── impl/
+```
+
+**实现方案**：
+
+分 5 步迁移，每步 `mvn compile` 通过后再进入下一步：
+
+1. **P5.1 基础设施迁移**：config/ → infra/model/ + infra/config/；service/+model/ → infra/storage/；ChatModelRouter 重命名为 ChatModelRegistry
+2. **P5.2 知识层+API层**：rag/ → knowledge/；controller/ → api/
+3. **P5.3 v2 核心迁移**：v2/ → agent/（loop/skill/evaluation/tools 四个子包）
+4. **P5.4 拆分 GameTools**：原 GameTools.java（5 个 @Tool 方法的大类）拆分为 5 个独立 @Component：
+   - `SkillListTool` / `SkillLoadTool` — Skill 查询和加载
+   - `GameGenerationTool` / `GameFixTool` — 游戏生成和修复
+   - `GameEvaluationTool` — Playwright 评估
+   - `ToolContext` — 共享 WorkingMemory 的桥梁（@Component 单例）
+   - `HtmlCleaner` / `ErrorClassifier` — 抽取的工具类
+   - AgentLoop 改为 `.tools(skillListTool, skillLoadTool, gameGenerationTool, gameFixTool, gameEvaluationTool)`
+5. **P5.5 v1 归档**：core/analyzer/games/impl/ → legacy/，所有类标记 @Deprecated
+
+**关键技术点**：
+
+- Spring AI `tools(Object... toolObjects)` 支持传入多个对象，自动扫描所有 @Tool 方法
+- ToolContext 作为 @Component 单例，AgentLoop 每次 run() 调用 `toolContext.init(memory)` 设置当前 WorkingMemory
+- 向后兼容：/api/game/generate（v1）和 /api/game/v2/generate（v2）两个端点都保留
+- `computeScores` 方法可见性从 package-private 提升为 public（跨包测试需要）
+
+**验证结果**：
+
+- `mvn compile` ✅ 通过
+- `mvn test` ✅ 全部 11 个测试通过（AgentLoopIntegrationTest）

@@ -137,14 +137,32 @@ evaluation_criteria:
 
 | # | 任务 | 状态 | 说明 |
 |---|------|------|------|
-| 4.1 | 上下文管理 | 🔲 待开始 | 多轮对话的上下文压缩 |
-| 4.2 | 错误处理与容错 | 🔲 待开始 | LLM 调用失败重试、工具执行异常处理 |
-| 4.3 | 性能优化 | 🔲 待开始 | 减少不必要的 LLM 调用 |
-| 4.4 | 文档和测试 | 🔲 待开始 | API 文档、集成测试 |
+| 4.1 | 上下文管理 | ✅ 已完成 | WorkingMemory HTML 摘要 |
+| 4.2 | 错误处理与容错 | ✅ 已完成 | 指数退避重试 + 超时保护 + 异常分类 |
+| 4.3 | 性能优化 | ✅ 已完成 | Skill 关键词快速匹配预加载 |
+| 4.4 | 文档和测试 | ✅ 已完成 | AgentLoopIntegrationTest (455行) |
+
+### Phase 5：工程结构重构（领域驱动包结构）
+
+| # | 任务 | 状态 | 说明 |
+|---|------|------|------|
+| 5.1 | 基础设施迁移 | ✅ 已完成 | config/ → infra/model/ + infra/config/; service/+model/ → infra/storage/; ChatModelRouter → ChatModelRegistry |
+| 5.2 | 知识层 + API 层迁移 | ✅ 已完成 | rag/ → knowledge/; controller/ → api/ |
+| 5.3 | v2 核心迁移 | ✅ 已完成 | v2/ → agent/loop/ + agent/skill/ + agent/evaluation/ + agent/tools/ |
+| 5.4 | 拆分 GameTools | ✅ 已完成 | ToolContext + SkillListTool/SkillLoadTool + GameGenerationTool/GameFixTool + GameEvaluationTool |
+| 5.5 | v1 归档 + 清理 | ✅ 已完成 | core/analyzer/games/impl/ → legacy/ 并标记 @Deprecated |
 
 ---
 
 ## 3. 进度日志
+
+### 2026-03-29（下午）
+- **Phase 5 工程结构重构完成**（5.1 ~ 5.5）
+- 重构为领域驱动包结构：api / infra / knowledge / agent / legacy
+- ChatModelRouter 重命名为 ChatModelRegistry
+- GameTools 拆分为 5 个独立 Tool Bean + ToolContext 共享状态
+- v1 代码归档到 legacy/ 并标记 @Deprecated
+- `mvn compile` + `mvn test` 全部通过
 
 ### 2026-03-28（下午）
 - **Phase 1 代码实现完成**（1.1 ~ 1.6）

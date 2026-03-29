@@ -81,26 +81,63 @@ curl -s http://localhost:9200/_cluster/health
 
 ## Architecture and Key Components
 
-### Agent Framework Architecture
+### Package Structure (Domain-Driven)
 
-The system uses a **plugin-based Agent architecture** with three core layers:
+```
+com.sumo.agent/
+├── api/              # REST endpoints (GameChatController, GameStorageController)
+├── infra/            # Infrastructure
+│   ├── model/        # LLM model configs (ChatModelRegistry, DashScope/OpenAI/Kimi/Deepseek configs)
+│   ├── config/       # App configs (Jackson, RestClient)
+│   └── storage/      # File storage (GameStorageService, SavedGame)
+├── knowledge/        # RAG layer (VectorStore, GameKnowledgeRAG, ES/Memory/Embedded impls)
+├── agent/            # Agent core domain
+│   ├── loop/         # Execution engine (AgentLoop, WorkingMemory, AgentLoopResult)
+│   ├── tools/        # Tool layer (split from GameTools)
+│   │   ├── ToolContext.java          # Shared WorkingMemory bridge
+│   │   ├── skill/                    # SkillListTool, SkillLoadTool
+│   │   ├── generation/               # GameGenerationTool, GameFixTool, HtmlCleaner, ErrorClassifier
+│   │   └── evaluation/               # GameEvaluationTool
+│   ├── skill/        # Skill system (SkillDefinition, SkillLoader)
+│   └── evaluation/   # Game evaluator (GameEvaluator, ProbeReport)
+└── legacy/           # v1 code (@Deprecated, kept for backward compatibility)
+    ├── core/         # BaseAgent, AgentContext, GameGeneratorAgent, GameConfig
+    ├── analyzer/     # IntentAnalyzer
+    ├── games/        # MathGameAgent, MemoryGameAgent, UniversalGameAgent
+    └── impl/         # EnglishLearningGameAgent, TrafficSafetyGameAgent
+```
+
+### v2 Agent Loop Architecture (Primary)
+
+The v2 system uses a **multi-turn iterative Agent Loop** with Function Calling:
+
+```
+User Input → AgentLoop (multi-turn)
+    → LLM (Function Calling) → selects tools
+        ├── SkillListTool (list available skill templates)
+        ├── SkillLoadTool (load a specific skill template)
+        ├── GameGenerationTool (generate HTML5 game via LLM)
+        ├── GameEvaluationTool (Playwright headless evaluation)
+        └── GameFixTool (incremental fix or full rewrite)
+    → Evaluation score < 80 → auto fix → continue iteration
+    → Evaluation score >= 80 → return final game
+```
+
+- `AgentLoop` manages the outer quality gate loop (max 5 iterations)
+- `ToolContext` bridges multiple Tool Beans with shared `WorkingMemory`
+- `ChatModelRegistry` routes to different LLM backends (DashScope, Kimi, Deepseek, etc.)
+
+### v1 Legacy Architecture (Backward Compatible)
+
+The v1 system uses a **plugin-based Agent architecture** (now in `legacy/` package, @Deprecated):
 
 #### 1. Agent Lifecycle (Template Method Pattern)
 - `BaseAgent` abstract class defines the lifecycle: `run()` → `preHandle()` → `execute()` → `postHandle()` → `handleError()`
 - All agents extend `BaseAgent` and implement `execute()`, `getName()`, `getDescription()`
-- Agents auto-register via Spring's `@Component` annotation - no manual registration needed
+- Agents auto-register via Spring's `@Component` annotation
 
-#### 2. Agent Context Pipeline
-- `AgentContext` carries all execution data through the pipeline
-- Key fields: `sessionId`, `userInput`, `gameConfig`, `result`, `attributes` (extensible map)
-- Context flows: Controller → GameGeneratorAgent → Specific Game Agent → Response
-
-#### 3. Agent Selection Strategy
-- `GameGeneratorAgent` is the main orchestrator that:
-  1. Uses `IntentAnalyzer` to extract `GameIntent` from user input
-  2. Selects appropriate game agent based on `GameType` enum
-  3. Delegates execution to selected agent (e.g., `MathGameAgent`)
-  4. Returns `GameGenerationResult` with generated HTML5 game
+#### 2. Agent Selection Strategy
+- `GameGeneratorAgent` is the v1 orchestrator that uses `IntentAnalyzer` + `GameType` enum matching
 
 ### Core Data Models
 

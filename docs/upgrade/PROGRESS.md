@@ -10,6 +10,7 @@
 | **P2** | Skill 迁移 | ✅ 完成 | 100% | 6 个 YAML Skill（4迁移 + 2新增） |
 | **P3** | 自主纠错（Probe + Playwright + 评估） | ✅ 完成 | 100% | game-probe.js / GameEvaluator / evaluateGame / fixGame |
 | **P4** | 优化完善 | ✅ 完成 | 100% | 上下文管理/容错/性能/文档 |
+| **P5** | 工程结构重构 | ✅ 完成 | 100% | 领域驱动包结构 + GameTools 拆分 + v1 归档 |
 
 ---
 
@@ -17,11 +18,11 @@
 
 | 任务 | 状态 | 文件 |
 |------|------|------|
-| 1.1 AgentLoop 核心类 | ✅ | v2/loop/AgentLoop.java (237行) |
-| 1.2 Tool 协议+注册 | ✅ | v2/tool/GameTool+ToolProfile+ToolResult+ToolRegistry |
-| 1.3 generate_game 工具 | ✅ | v2/tools/GenerateGameTool.java |
-| 1.4 list_skills + load_skill | ✅ | v2/tools/ListSkillsTool+LoadSkillTool + math_adventure.yaml |
-| 1.5 Skill 系统 | ✅ | v2/skill/SkillDefinition+SkillLoader |
+| 1.1 AgentLoop 核心类 | ✅ | agent/loop/AgentLoop.java |
+| 1.2 Tool 协议+注册 | ✅ | Spring AI @Tool 原生注解 |
+| 1.3 generate_game 工具 | ✅ | agent/tools/generation/GameGenerationTool.java |
+| 1.4 list_skills + load_skill | ✅ | agent/tools/skill/SkillListTool + SkillLoadTool |
+| 1.5 Skill 系统 | ✅ | agent/skill/SkillDefinition+SkillLoader |
 | 1.6 v2 API 端点 | ✅ | POST /api/game/v2/generate |
 
 ## Phase 2 明细 ✅ 100%
@@ -53,6 +54,16 @@
 | 4.3 性能优化 | ✅ | Skill 关键词快速匹配预加载，跳过 listSkills 调用 |
 | 4.4 文档测试 | ✅ | docs/API.md + AgentLoopIntegrationTest.java(455行) |
 
+## Phase 5 明细 ✅ 100%
+
+| 任务 | 状态 | 说明 |
+|------|------|------|
+| 5.1 基础设施迁移 | ✅ | config/ → infra/model/ + infra/config/; service/+model/ → infra/storage/ |
+| 5.2 知识层+API层迁移 | ✅ | rag/ → knowledge/; controller/ → api/ |
+| 5.3 v2 核心迁移 | ✅ | v2/ → agent/loop/ + agent/skill/ + agent/evaluation/ + agent/tools/ |
+| 5.4 拆分 GameTools | ✅ | ToolContext + 5 个独立 Tool Bean（SkillList/SkillLoad/Generation/Fix/Evaluation） |
+| 5.5 v1 归档+清理 | ✅ | core/analyzer/games/impl/ → legacy/ 并标记 @Deprecated |
+
 ---
 
-*最后更新：2026-03-29 10:00*
+*最后更新：2026-03-29 13:00*

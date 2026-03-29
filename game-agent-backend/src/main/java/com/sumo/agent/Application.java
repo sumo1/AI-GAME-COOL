@@ -4,8 +4,8 @@
  */
 package com.sumo.agent;
 
-import com.sumo.agent.core.BaseAgent;
-import com.sumo.agent.core.GameGeneratorAgent;
+import com.sumo.agent.legacy.core.BaseAgent;
+import com.sumo.agent.legacy.core.GameGeneratorAgent;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
