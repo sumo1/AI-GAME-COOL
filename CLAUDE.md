@@ -79,189 +79,296 @@ docker-compose down                      # Stop and remove
 curl -s http://localhost:9200/_cluster/health
 ```
 
-## Architecture and Key Components
+---
 
-### Package Structure (Domain-Driven)
+## V2 Architecture (Current)
+
+### Design Philosophy: "LLM 负责理解，代码只做代码该做的事"
+
+V2 的核心设计转变：
+
+| 维度 | V1 做法 | V2 做法 |
+|---|---|---|
+| **任务决策** | Java 规则引擎（IntentAnalyzer + GameType 枚举匹配） | LLM 通过 Function Calling 自主决策 |
+| **游戏生成** | 硬编码子 Agent（MathGameAgent 等），单次调用 | AgentLoop 多轮迭代，生成 → 评估 → 修复闭环 |
+| **质量保障** | 无（生成即交付） | Playwright headless 评估 + 代码级检查 + 自动修复 |
+| **扩展方式** | 写新 Java 类 | 写一个 SKILL.md 文件（操作手册） |
+| **Skill 是什么** | 不存在 | SKILL.md 操作手册（LLM 读原文理解怎么做） |
+
+**核心原则**：
+- **Frontmatter 给机器用**（发现 + 过滤），**Body 给 LLM 读**（理解 + 执行）
+- **代码级检查只做 LLM 做不到的事**（HTML 结构检查、Probe 运行时数据分析）
+- **修复策略、评估标准、生成步骤全部写在 SKILL.md 中**，LLM 自己阅读理解
+
+### Package Structure
 
 ```
 com.sumo.agent/
-├── api/              # REST endpoints (GameChatController, GameStorageController)
-├── infra/            # Infrastructure
-│   ├── model/        # LLM model configs (ChatModelRegistry, DashScope/OpenAI/Kimi/Deepseek configs)
-│   ├── config/       # App configs (Jackson, RestClient)
-│   └── storage/      # File storage (GameStorageService, SavedGame)
-├── knowledge/        # RAG layer (VectorStore, GameKnowledgeRAG, ES/Memory/Embedded impls)
-├── agent/            # Agent core domain
-│   ├── loop/         # Execution engine (AgentLoop, WorkingMemory, AgentLoopResult)
-│   ├── tools/        # Tool layer (split from GameTools)
-│   │   ├── ToolContext.java          # Shared WorkingMemory bridge
-│   │   ├── skill/                    # SkillListTool, SkillLoadTool
-│   │   ├── generation/               # GameGenerationTool, GameFixTool, HtmlCleaner, ErrorClassifier
-│   │   └── evaluation/               # GameEvaluationTool
-│   ├── skill/        # Skill system (SkillDefinition, SkillLoader)
-│   └── evaluation/   # Game evaluator (GameEvaluator, ProbeReport)
-└── legacy/           # v1 code (@Deprecated, kept for backward compatibility)
-    ├── core/         # BaseAgent, AgentContext, GameGeneratorAgent, GameConfig
-    ├── analyzer/     # IntentAnalyzer
-    ├── games/        # MathGameAgent, MemoryGameAgent, UniversalGameAgent
-    └── impl/         # EnglishLearningGameAgent, TrafficSafetyGameAgent
+├── Application.java
+│
+├── api/                              # REST 端点
+│   ├── GameChatController.java       #   POST /api/game/generate (v1)
+│   └── GameStorageController.java    #   POST /api/game/v2/generate (v2)
+│
+├── infra/                            # 基础设施
+│   ├── model/                        #   LLM 模型配置
+│   │   ├── ChatModelRegistry.java    #     模型路由（DashScope/Kimi/Deepseek/OpenAI）
+│   │   ├── DashScopeConfig.java
+│   │   └── ...
+│   ├── config/                       #   应用配置（Jackson, RestClient）
+│   └── storage/                      #   游戏存储（GameStorageService, SavedGame）
+│
+├── knowledge/                        # RAG 知识层
+│   ├── VectorStore.java
+│   └── ...（ES/Memory/Embedded 实现）
+│
+├── agent/                            # Agent 核心域
+│   ├── loop/                         #   执行引擎
+│   │   ├── AgentLoop.java            #     多轮迭代 + 质量门禁
+│   │   ├── AgentLoopResult.java
+│   │   └── WorkingMemory.java        #     工作记忆（游戏状态追踪）
+│   ├── tools/                        #   Tool 层（5 个独立 Bean）
+│   │   ├── ToolContext.java           #     共享状态桥梁（WorkingMemory + ActiveSkill）
+│   │   ├── skill/                     #     SkillListTool / SkillLoadTool
+│   │   ├── generation/                #     GameGenerationTool / GameFixTool
+│   │   └── evaluation/                #     GameEvaluationTool
+│   ├── skill/                        #   Skill 系统
+│   │   ├── Skill.java                #     接口（getGenerationGuidance / getEvaluationChecks）
+│   │   ├── DefaultSkill.java         #     默认实现（gameType 派生代码检查）
+│   │   ├── SkillDefinition.java      #     数据结构（frontmatter + instructions）
+│   │   ├── SkillLoader.java          #     加载器（解析 SKILL.md）
+│   │   ├── EvaluationCheck.java      #     代码级检查（函数式接口）
+│   │   └── FixHint.java              #     修复提示（POJO）
+│   └── evaluation/                   #   游戏评估
+│       ├── GameEvaluator.java        #     Playwright headless 渲染 + Probe 数据收割
+│       └── ProbeReport.java          #     评估报告
+│
+└── legacy/                           # V1 遗留代码（@Deprecated）
+    ├── core/                         #   BaseAgent, GameGeneratorAgent, GameConfig
+    ├── analyzer/                     #   IntentAnalyzer
+    ├── games/                        #   MathGameAgent, MemoryGameAgent, UniversalGameAgent
+    └── impl/                         #   EnglishLearningGameAgent, TrafficSafetyGameAgent
 ```
 
-### v2 Agent Loop Architecture (Primary)
+### Skill System (AgentSkills.io 规范)
 
-The v2 system uses a **multi-turn iterative Agent Loop** with Function Calling:
+每个 Skill 是一个目录，遵循 [AgentSkills.io](https://agentskills.io) 开放规范：
 
 ```
-User Input → AgentLoop (multi-turn)
-    → LLM (Function Calling) → selects tools
-        ├── SkillListTool (list available skill templates)
-        ├── SkillLoadTool (load a specific skill template)
-        ├── GameGenerationTool (generate HTML5 game via LLM)
-        ├── GameEvaluationTool (Playwright headless evaluation)
-        └── GameFixTool (incremental fix or full rewrite)
-    → Evaluation score < 80 → auto fix → continue iteration
-    → Evaluation score >= 80 → return final game
+resources/skills/
+├── math_adventure/
+│   ├── SKILL.md              # 操作手册（frontmatter + Markdown body）
+│   └── assets/
+│       └── template.html     # HTML 参考模板
+├── memory_master/
+├── english_explorer/
+├── traffic_safety/
+├── shape_colors/
+└── logic_puzzle/
 ```
 
-- `AgentLoop` manages the outer quality gate loop (max 5 iterations)
-- `ToolContext` bridges multiple Tool Beans with shared `WorkingMemory`
-- `ChatModelRegistry` routes to different LLM backends (DashScope, Kimi, Deepseek, etc.)
+**SKILL.md 结构**：
+```markdown
+---
+name: math_adventure                    # frontmatter: 机器用（发现、过滤）
+description: 生成 4-8 岁儿童的数学加减法互动游戏...
+ageGroup: "4-8"
+gameType: quiz
+tags: [数学, 加法, 减法]
+---
 
-### v1 Legacy Architecture (Backward Compatible)
+# 数学冒险                              # body: LLM 读（理解、执行）
 
-The v1 system uses a **plugin-based Agent architecture** (now in `legacy/` package, @Deprecated):
+## 何时使用
+用户提到数学、加法、减法...时激活。
 
-#### 1. Agent Lifecycle (Template Method Pattern)
-- `BaseAgent` abstract class defines the lifecycle: `run()` → `preHandle()` → `execute()` → `postHandle()` → `handleError()`
-- All agents extend `BaseAgent` and implement `execute()`, `getName()`, `getDescription()`
-- Agents auto-register via Spring's `@Component` annotation
+## 生成步骤
+1. 根据年龄段确定数值范围...
+2. 参考 assets/template.html...
+3. 调用 generateGame...
 
-#### 2. Agent Selection Strategy
-- `GameGeneratorAgent` is the v1 orchestrator that uses `IntentAnalyzer` + `GameType` enum matching
+## 评估重点
+- 每道题的答案必须算术正确
+- 答对/答错必须有即时反馈
+- ...
 
-### Core Data Models
-
-#### Records (Java 17 Records with accessor methods, not getters)
-```java
-// In GameGeneratorAgent.java:160
-GameIntent(
-    GameType gameType,      // Access via: intent.gameType()
-    String ageGroup,        // Access via: intent.ageGroup()
-    DifficultyLevel difficulty,
-    String theme,
-    String title,
-    boolean timerEnabled,
-    int duration
-)
+## 常见问题
+- **答案计算错误** → 检查 JS 中使用 parseInt()...
+- **难度不递进** → 确保数值范围随答对次数递增...
 ```
 
-#### Enums (in GameConfig.java)
-- `GameType`: MATH, WORD, MEMORY, PUZZLE, DRAWING
-- `DifficultyLevel`: EASY, MEDIUM, HARD
-- `Theme`: ANIMALS, SPACE, FAIRY_TALE, OCEAN, DINOSAUR, SUPERHERO
+**渐进式披露（Progressive Disclosure）**：
+1. **发现**：启动时只加载 frontmatter（name + description ~100 tokens），用于匹配和过滤
+2. **激活**：任务匹配时，SkillLoadTool 返回完整 SKILL.md body（LLM 读操作手册）
+3. **执行**：LLM 按手册调 generateGame / evaluateGame / fixGame
 
-### RAG Storage Architecture
+### Agent Loop 执行流程
 
-**Strategy Pattern Implementation**: `VectorStore` interface
-```java
-interface VectorStore {
-    void save(Document document);
-    List<Document> search(String query, int topK);
-}
 ```
-
-**Implementations**:
-1. `ElasticsearchVectorStore` - Production: Real vector embeddings, persistent, requires Docker
-2. `InMemoryVectorStore` - Development: Keyword matching, data lost on restart
-3. `EmbeddedVectorStore` - Local files: File-based storage, no external dependencies
-
-**Document Types**: GAME_TEMPLATE, EDUCATION_THEORY, GAME_ASSET, USER_PROGRESS, SUCCESS_CASE, DESIGN_PATTERN
-
-### Spring AI Integration
-
-- **Version**: Spring AI 1.0.0 with Spring Boot 3.2.2
-- **Providers**: 
-  - OpenAI (primary): Configure via `OPENAI_API_KEY`, `OPENAI_BASE_URL`
-  - Alibaba DashScope (alternative): spring-ai-alibaba-starter-dashscope
-- **Chat Model**: Injected via `@Autowired ChatModel` in services
+POST /api/game/v2/generate
+  │
+  ▼
+AgentLoop.run()
+  ├─ tryPreloadSkill("记忆翻牌" → memory_master)
+  │
+  └─ ChatClient.call()  ← 一次调用，Spring AI 内部自动多轮 FC
+       │
+       ├─ FC1: loadSkill("memory_master")
+       │        → 激活 activeSkill
+       │        → 返回 SKILL.md 操作手册原文 + template.html
+       │        → LLM 读完知道：生成步骤、评估重点、常见坑
+       │
+       ├─ FC2: generateGame(design)
+       │        → system prompt 注入 SKILL.md instructions
+       │        → LLM 在生成时就知道"会被查什么"
+       │        → HTML → WorkingMemory
+       │
+       ├─ FC3: evaluateGame(html)
+       │        → Playwright 通用五维评分（可运行/布局/交互/完整/教育）
+       │        → + gameType 派生的代码检查（matching → hasMatch + hasInteraction）
+       │        → 评分 < 80 → 继续
+       │
+       ├─ FC4: fixGame(issues)
+       │        → LLM 对话历史中已有 SKILL.md "常见问题"段
+       │        → 带着领域知识修复，不需要代码额外注入
+       │
+       ├─ FC5: evaluateGame(html)
+       │        → 评分 ≥ 80 → 达标
+       │
+       └─ LLM 返回文本总结 → .call() 结束
+  │
+  └─ AgentLoopResult.success(html, message, iterations, evalScore)
+```
 
 ### API Endpoints
 
 ```
-POST /api/game/generate          # Generate game (JSON body)
-GET  /api/game/agents            # List all available agents
-GET  /api/game/generate/stream   # SSE streaming generation
+POST /api/game/v2/generate       # V2: AgentLoop 多轮迭代（推荐）
+POST /api/game/generate           # V1: 传统 Agent 单次生成（兼容保留）
+GET  /api/game/agents             # 列出已注册的 V1 Agent
+GET  /api/game/generate/stream    # SSE 流式生成（V1）
+```
+
+### Adding a New Game Type (V2)
+
+不需要写 Java 代码。创建一个 SKILL.md 文件即可：
+
+```bash
+mkdir -p src/main/resources/skills/my_new_game/assets
+```
+
+写 `SKILL.md`：
+```markdown
+---
+name: my_new_game
+description: 描述这个游戏是什么、什么时候用。
+gameType: quiz
+tags: [关键词1, 关键词2]
+---
+
+# 我的新游戏
+
+## 何时使用
+用户提到 xxx 时激活。
+
+## 生成步骤
+1. 确定参数...
+2. 调用 generateGame...
+
+## 评估重点
+- 必须有 xxx
+- 不能有 yyy
+
+## 常见问题
+- **问题 A** → 解决方案 A
+```
+
+可选：在 `assets/template.html` 放一个参考模板。重启应用即可生效。
+
+---
+
+## V1 Architecture (Legacy, @Deprecated)
+
+V1 代码保留在 `legacy/` 包中，通过 `POST /api/game/generate` 端点仍可访问。
+
+### Agent Lifecycle (Template Method Pattern)
+
+```
+用户输入 → IntentAnalyzer（规则引擎）→ GameGeneratorAgent（编排器）
+    → selectAgent（按 GameType 枚举匹配）→ 子 Agent.run()
+        ├── MathGameAgent（内置 HTML 模板）
+        ├── MemoryGameAgent（内置 HTML 模板）
+        ├── EnglishLearningAgent（内置 HTML 模板）
+        ├── TrafficSafetyGameAgent（内置 HTML 模板）
+        └── UniversalGameAgent（LLM 单次生成）
+```
+
+- `BaseAgent` 抽象类定义生命周期：`run()` → `preHandle()` → `execute()` → `postHandle()` → `handleError()`
+- 所有子 Agent 通过 `@Component` 自动注册到 `GameGeneratorAgent`
+
+### V1 的局限（V2 解决的问题）
+
+| 问题 | V1 | V2 |
+|---|---|---|
+| 单次调用无法迭代 | 生成一锤子买卖，质量不稳定 | AgentLoop 最多 5 轮迭代，评分 ≥ 80 才交付 |
+| 硬编码子 Agent | 新增游戏类型要写 Java 类 | 写一个 SKILL.md 文件即可 |
+| 规则引擎意图识别 | 无法理解复杂/模糊需求 | LLM 原生 Function Calling 自主决策 |
+| 无质量评估 | 生成即交付，可能有 bug | Playwright 渲染 + Probe 注入 + 五维评分 + 代码检查 |
+| 无自动修复 | 用户自己发现问题 | evaluateGame 发现问题 → fixGame 自动修复 → 再评估 |
+
+### Core Data Models (V1)
+
+```java
+// GameIntent (in legacy/core/GameGeneratorAgent.java)
+GameIntent(GameType gameType, String ageGroup, DifficultyLevel difficulty, ...)
+
+// Enums (in legacy/core/GameConfig.java)
+GameType: MATH, WORD, MEMORY, PUZZLE, DRAWING
+DifficultyLevel: EASY, MEDIUM, HARD
+Theme: ANIMALS, SPACE, FAIRY_TALE, OCEAN, DINOSAUR, SUPERHERO
+```
+
+---
+
+## Infrastructure
+
+### RAG Storage Architecture
+
+**Strategy Pattern**: `VectorStore` interface in `knowledge/`
+
+| 实现 | 用途 | 依赖 |
+|---|---|---|
+| `InMemoryVectorStore` | 开发环境 | 无 |
+| `ElasticsearchVectorStore` | 生产环境 | Docker + ES |
+| `EmbeddedVectorStore` | 本地文件 | 无 |
+
+### Spring AI Integration
+
+- **Version**: Spring AI 1.0.0 with Spring Boot 3.2.2
+- **Primary Provider**: Alibaba DashScope（通义千问，通过 `ChatModelRegistry` 路由）
+- **Multi-Model**: DashScope / Kimi K2 / Qwen3 Coder Plus / Deepseek / OpenAI
+- **Function Calling**: `ChatClient.tools(...)` 原生支持，Spring AI 内部自动处理 FC 循环
+
+### Environment Configuration
+
+```bash
+# .env file
+export ALIYUN_API_KEY=your-dashscope-api-key
+export AGENT_RAG_TYPE=memory    # memory | elasticsearch | embedded
+
+# Optional
+export AI_MODEL=qwen-plus       # LLM model name
+export SERVER_PORT=8088          # Default: 8088
 ```
 
 ## Important Technical Notes
 
 ### Java Version and Dependencies
-- **Java 17 required** (NOT Java 21 due to Spring Boot 3.2.2)
+- **Java 17+**（Spring Boot 3.2.2 兼容 17~21）
 - **Jakarta EE** (not javax): Use `jakarta.annotation.PostConstruct`
-- **Maven repositories**: Aliyun mirror, Central, Spring Milestones
-
-### Common Compilation Issues and Solutions
-1. **Import errors**: Use `jakarta.annotation.*` not `javax.annotation.*`
-2. **Lambda variables**: Must be final or effectively final
-3. **Record accessors**: Use `record.field()` not `record.getField()`
-4. **Float array streams**: Cannot use `Arrays.stream()` directly, need wrapper methods
-
-### Agent Development Guidelines
-
-To add a new game type:
-
-```java
-@Component("newGameAgent")  // Bean name for Spring DI
-public class NewGameAgent extends BaseAgent {
-    
-    @Override
-    public void execute(AgentContext context) {
-        // 1. Extract game config from context
-        GameConfig config = context.getGameConfig();
-        
-        // 2. Generate game HTML using templates or AI
-        String gameHtml = generateGame(config);
-        
-        // 3. Set result in context
-        context.setResult(gameHtml);
-    }
-    
-    @Override
-    public String getName() {
-        return "新游戏类型Agent";
-    }
-    
-    @Override
-    public String getDescription() {
-        return "生成XXX类型的教育游戏";
-    }
-}
-```
-
-### Environment Configuration
-
-Required environment variables (set in `.env` file):
-```bash
-# AI Model Configuration
-OPENAI_API_KEY=your-api-key
-OPENAI_BASE_URL=https://api.openai.com  # Optional custom endpoint
-
-# RAG Configuration
-AGENT_RAG_ENABLED=true                   # Enable/disable RAG
-AGENT_RAG_TYPE=memory                    # Options: elasticsearch, memory, embedded
-
-# Elasticsearch (if using)
-ES_HOST=localhost
-ES_PORT=9200
-```
+- **Playwright**: 首次运行 evaluateGame 时自动下载 Chromium（~120MB）
 
 ### Character Encoding
 - **All files must use UTF-8 encoding**
 - Chinese characters in logs and comments are expected
 - Set JVM flag if needed: `-Dfile.encoding=UTF-8`
-
-## Project Migration Notes
-
-This project is being migrated to align with newer Spring AI versions. When updating dependencies, reference:
-- Target compatibility: ~/workplace/yuntoo/yuntoo-smartcode/pom.xml
-- Current Spring AI: 1.0.0 → Consider upgrading when stable
