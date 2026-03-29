@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>逻辑推理大师</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Comic Sans MS', cursive, sans-serif; background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        .game-container { background: white; border-radius: 20px; padding: 28px; box-shadow: 0 20px 60px rgba(0,0,0,0.4); max-width: 620px; width: 100%; }
+        h1 { text-align: center; color: #1e293b; margin-bottom: 12px; font-size: 1.6em; }
+        .score-board { display: flex; justify-content: space-around; margin-bottom: 12px; flex-wrap: wrap; gap: 6px; }
+        .score-item { background: #f1f5f9; padding: 8px 14px; border-radius: 10px; font-size: 15px; }
+        .progress { height: 14px; background: #e2e8f0; border-radius: 7px; overflow: hidden; margin-bottom: 14px; }
+        .progress-bar { height: 100%; background: linear-gradient(90deg, #6366f1, #8b5cf6); transition: width 0.4s; }
+        .question-area { background: #f8fafc; padding: 22px; border-radius: 16px; margin-bottom: 16px; }
+        .q-type { font-size: 0.85em; color: #6366f1; font-weight: bold; margin-bottom: 8px; text-transform: uppercase; }
+        .q-text { font-size: 1.2em; color: #1e293b; margin-bottom: 16px; line-height: 1.5; }
+        .sequence { display: flex; gap: 10px; align-items: center; justify-content: center; flex-wrap: wrap; margin-bottom: 16px; }
+        .seq-item { width: 56px; height: 56px; background: #e0e7ff; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.4em; font-weight: bold; color: #4338ca; }
+        .seq-blank { background: #fef3c7; border: 3px dashed #f59e0b; color: #b45309; font-size: 1.6em; }
+        .options { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+        .option-btn { padding: 16px; font-size: 1.2em; border: 2px solid #e2e8f0; border-radius: 14px; background: white; color: #1e293b; cursor: pointer; transition: all 0.2s; font-weight: bold; }
+        .option-btn:hover { border-color: #6366f1; background: #eef2ff; }
+        .option-btn:active { transform: scale(0.97); }
+        .option-btn.correct { border-color: #22c55e; background: #dcfce7; color: #166534; animation: pulse 0.5s; }
+        .option-btn.wrong { border-color: #ef4444; background: #fef2f2; color: #991b1b; animation: shake 0.4s; }
+        .option-btn:disabled { opacity: 0.7; cursor: default; }
+        @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+        @keyframes shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+        .feedback { font-size: 1.1em; margin-top: 10px; min-height: 1.5em; text-align: center; }
+        .explanation { background: #eff6ff; padding: 12px; border-radius: 10px; margin-top: 8px; font-size: 0.95em; color: #1e40af; display: none; }
+        .result { display: none; text-align: center; padding: 20px; }
+        .result.show { display: block; }
+        .result h2 { font-size: 1.5em; margin-bottom: 10px; }
+        .restart-btn { background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border: none; padding: 14px 28px; border-radius: 25px; font-size: 1.1em; cursor: pointer; margin-top: 10px; }
+        .restart-btn:hover { opacity: 0.9; }
+        .timer { color: #6366f1; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <h1>🧩 逻辑推理大师</h1>
+        <div class="score-board">
+            <div class="score-item">⭐ 分数: <span id="score">0</span></div>
+            <div class="score-item">📊 题目: <span id="current">1</span>/10</div>
+            <div class="score-item timer">⏱️ <span id="timer">0</span>秒</div>
+        </div>
+        <div class="progress"><div class="progress-bar" id="progressBar" style="width:0%"></div></div>
+
+        <div id="questionArea">
+            <div class="question-area">
+                <div class="q-type" id="qType"></div>
+                <div class="q-text" id="qText"></div>
+                <div class="sequence" id="sequence"></div>
+            </div>
+            <div class="options" id="options"></div>
+            <div class="feedback" id="feedback"></div>
+            <div class="explanation" id="explanation"></div>
+        </div>
+
+        <div class="result" id="result">
+            <h2>🎉 挑战完成！</h2>
+            <p>总分: <span id="finalScore"></span></p>
+            <p>正确率: <span id="accuracy"></span>%</p>
+            <p>用时: <span id="totalTime"></span>秒</p>
+            <p id="encouragement"></p>
+            <button class="restart-btn" onclick="startGame()">再挑战一次</button>
+        </div>
+    </div>
+    <script>
+        const TOTAL = 10;
+        let score = 0, correctCount = 0, idx = 0, questions = [];
+        let startTime = 0, timerInterval = null;
+
+        function shuffle(arr) { const a=[...arr]; for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
+        function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+
+        function genSequenceAdd() {
+            const start = randInt(1, 10), step = randInt(2, 5);
+            const seq = [];
+            for (let i = 0; i < 5; i++) seq.push(start + step * i);
+            const answer = start + step * 5;
+            const distractors = shuffle([answer + step, answer - step, answer + 1, answer * 2].filter(d => d !== answer && d > 0)).slice(0, 3);
+            return {
+                type: '数列规律', text: '找出数列的规律，填入问号处的数字：',
+                sequence: [...seq, '?'], answer, options: shuffle([answer, ...distractors]),
+                explain: '规律：每次加 ' + step + '，所以 ' + seq[4] + ' + ' + step + ' = ' + answer
+            };
+        }
+
+        function genSequenceMul() {
+            const start = randInt(1, 3), factor = randInt(2, 3);
+            const seq = []; let v = start;
+            for (let i = 0; i < 4; i++) { seq.push(v); v *= factor; }
+            const answer = v;
+            const distractors = shuffle([answer + factor, answer - factor, answer + 1, Math.floor(answer / 2)].filter(d => d !== answer && d > 0)).slice(0, 3);
+            return {
+                type: '数列规律', text: '找出数列的规律，填入问号处的数字：',
+                sequence: [...seq, '?'], answer, options: shuffle([answer, ...distractors]),
+                explain: '规律：每次乘 ' + factor + '，所以 ' + seq[3] + ' × ' + factor + ' = ' + answer
+            };
+        }
+
+        function genPatternSequence() {
+            const patterns = [
+                { seq: ['🔴','🔵','🔴','🔵','🔴'], ans: '🔵', opts: ['🔵','🔴','🟢','🟡'], explain: '规律：红蓝交替排列' },
+                { seq: ['⭐','⭐','🌙','⭐','⭐'], ans: '🌙', opts: ['🌙','⭐','☀️','💫'], explain: '规律：两个星星后一个月亮' },
+                { seq: ['🔺','🔻','🔺','🔻','🔺'], ans: '🔻', opts: ['🔻','🔺','⬛','🔷'], explain: '规律：正三角和倒三角交替' },
+                { seq: ['🍎','🍊','🍋','🍎','🍊'], ans: '🍋', opts: ['🍋','🍎','🍊','🍇'], explain: '规律：苹果→橙子→柠檬循环' },
+                { seq: ['♠️','♥️','♦️','♣️','♠️'], ans: '♥️', opts: ['♥️','♦️','♣️','♠️'], explain: '规律：黑桃→红心→方块→梅花循环' }
+            ];
+            const p = patterns[Math.floor(Math.random() * patterns.length)];
+            return {
+                type: '图形排序', text: '找出排列规律，下一个是什么？',
+                sequence: [...p.seq, '?'], answer: p.ans, options: shuffle(p.opts),
+                explain: p.explain
+            };
+        }
+
+        function genLogicReasoning() {
+            const puzzles = [
+                { text: '小明比小红高，小红比小华高。谁最矮？', ans: '小华', opts: ['小华','小明','小红','一样高'], explain: '小明 > 小红 > 小华，所以小华最矮' },
+                { text: '箱子里有红球和蓝球共10个，红球比蓝球多4个。红球有几个？', ans: '7', opts: ['7','6','8','5'], explain: '红球 = (10+4)/2 = 7个' },
+                { text: '一只青蛙一次跳2格，从第1格出发，跳3次后在第几格？', ans: '7', opts: ['7','6','8','5'], explain: '1 + 2×3 = 7' },
+                { text: '周一到周日共7天。今天是周三，再过5天是周几？', ans: '周一', opts: ['周一','周日','周二','周六'], explain: '周三+5天：四、五、六、日、一，所以是周一' },
+                { text: '3个苹果的重量等于6个橘子。1个苹果等于几个橘子？', ans: '2', opts: ['2','3','4','6'], explain: '6÷3=2，1个苹果=2个橘子' },
+                { text: '如果所有猫都会爬树，小花是一只猫。那么小花会爬树吗？', ans: '会', opts: ['会','不会','不确定','有时候'], explain: '所有猫都会爬树，小花是猫，所以小花会爬树' },
+                { text: '比8大，比12小的偶数有几个？', ans: '1', opts: ['1','2','3','0'], explain: '比8大比12小的偶数只有10，所以是1个' },
+                { text: '小明排队，前面有3人，后面有5人。队伍共有几人？', ans: '9', opts: ['9','8','10','7'], explain: '3+1+5=9人（包括小明自己）' }
+            ];
+            const p = puzzles[Math.floor(Math.random() * puzzles.length)];
+            return {
+                type: '逻辑推理', text: p.text,
+                sequence: [], answer: p.ans, options: shuffle(p.opts),
+                explain: p.explain
+            };
+        }
+
+        function generateQuestions() {
+            questions = [];
+            const generators = [genSequenceAdd, genSequenceMul, genPatternSequence, genLogicReasoning];
+            for (let i = 0; i < TOTAL; i++) questions.push(generators[i % generators.length]());
+            questions = shuffle(questions);
+        }
+
+        function render() {
+            if (idx >= TOTAL) { showResult(); return; }
+            const q = questions[idx];
+            document.getElementById('qType').textContent = q.type;
+            document.getElementById('qText').textContent = q.text;
+            document.getElementById('feedback').textContent = '';
+            document.getElementById('explanation').style.display = 'none';
+            document.getElementById('current').textContent = idx + 1;
+            document.getElementById('progressBar').style.width = (idx / TOTAL * 100) + '%';
+            document.getElementById('score').textContent = score;
+
+            const seqContainer = document.getElementById('sequence');
+            seqContainer.innerHTML = '';
+            q.sequence.forEach(item => {
+                const el = document.createElement('div');
+                el.className = 'seq-item' + (item === '?' ? ' seq-blank' : '');
+                el.textContent = item;
+                seqContainer.appendChild(el);
+            });
+
+            const optContainer = document.getElementById('options');
+            optContainer.innerHTML = '';
+            q.options.forEach(opt => {
+                const btn = document.createElement('button');
+                btn.className = 'option-btn';
+                btn.textContent = opt;
+                btn.onclick = () => answer(btn, String(opt) === String(q.answer), q.explain);
+                optContainer.appendChild(btn);
+            });
+        }
+
+        function answer(el, isCorrect, explain) {
+            document.querySelectorAll('.option-btn').forEach(b => b.disabled = true);
+            const expEl = document.getElementById('explanation');
+            if (isCorrect) {
+                el.classList.add('correct');
+                score += 10; correctCount++;
+                document.getElementById('feedback').textContent = '🎉 回答正确！+10分';
+            } else {
+                el.classList.add('wrong');
+                document.getElementById('feedback').textContent = '💪 答错了，看看解析吧';
+            }
+            expEl.textContent = '💡 ' + explain;
+            expEl.style.display = 'block';
+            document.getElementById('score').textContent = score;
+            setTimeout(() => { idx++; render(); }, 2500);
+        }
+
+        function showResult() {
+            clearInterval(timerInterval);
+            const elapsed = Math.floor((Date.now() - startTime) / 1000);
+            document.getElementById('questionArea').style.display = 'none';
+            const acc = Math.round(correctCount / TOTAL * 100);
+            document.getElementById('finalScore').textContent = score;
+            document.getElementById('accuracy').textContent = acc;
+            document.getElementById('totalTime').textContent = elapsed;
+            const msg = acc >= 90 ? '🧠 你是逻辑思维天才！' : acc >= 70 ? '⭐ 非常棒，思维很敏捷！' : acc >= 50 ? '👍 不错，多练习会更好！' : '💪 加油，逻辑能力在进步中！';
+            document.getElementById('encouragement').textContent = msg;
+            document.getElementById('result').classList.add('show');
+        }
+
+        function startGame() {
+            score = 0; correctCount = 0; idx = 0;
+            startTime = Date.now();
+            document.getElementById('questionArea').style.display = 'block';
+            document.getElementById('result').classList.remove('show');
+            generateQuestions();
+            render();
+            clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                document.getElementById('timer').textContent = Math.floor((Date.now() - startTime) / 1000);
+            }, 1000);
+        }
+
+        startGame();
+    </script>
+</body>
+</html>

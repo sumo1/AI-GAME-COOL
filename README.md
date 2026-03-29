@@ -108,87 +108,159 @@ BACKEND_URL=http://localhost:8090 npm run dev
 - 前端：http://localhost:5173（Vite）
 - 后端：http://localhost:8088（可用 `SERVER_PORT` 覆盖）
 
-## 架构速览
+## 架构速览（V2 — 当前）
+
+### 设计哲学："LLM 负责理解，代码只做代码该做的事"
+
+| 维度 | V1（旧） | V2（现） |
+|---|---|---|
+| **任务决策** | Java 规则引擎匹配 GameType | LLM 通过 Function Calling 自主决策 |
+| **游戏生成** | 硬编码子 Agent，单次调用 | AgentLoop 多轮迭代：生成 → 评估 → 修复 |
+| **质量保障** | 无（生成即交付） | Playwright headless + 代码检查 + 自动修复 |
+| **扩展方式** | 写一个新 Java 类 | 写一个 SKILL.md 文件 |
+
+### 执行流程
 
 ```
-agent_framework_java/
-├── game-agent-backend/          # Spring Boot 后端（模型路由/Agent/REST）
-│   ├── core/                    # Agent 基类/上下文/调度
-│   ├── games/                   # 内置游戏Agent（Math/Memory/Universal）
-│   ├── config/                  # 模型配置（DashScope/Kimi/Qwen/DeepSeek）
-│   ├── rag/                     # RAG 实现（ES/Memory）
-│   └── controller/              # API 路由
-├── game-agent-frontend/         # React 前端（Vite + AntD）
-│   ├── components/              # 预览容器/聊天交互
-│   └── services/                # API 客户端
-└── docker-compose.yml           # ES（开发）
+"生成一个记忆翻牌游戏"
+  │
+  ▼
+AgentLoop
+  └─ ChatClient.call()  ← 一次调用，Spring AI 内部自动多轮 FC
+       │
+       ├─ loadSkill("memory_master")
+       │    → LLM 读 SKILL.md 操作手册（生成步骤/评估重点/常见问题）
+       │
+       ├─ generateGame(design)
+       │    → 带着 Skill 知识生成 HTML
+       │
+       ├─ evaluateGame(html)
+       │    → Playwright 渲染 + Probe 注入 + 五维评分
+       │    → 评分 < 80 → 继续
+       │
+       ├─ fixGame(issues)
+       │    → LLM 已读过 SKILL.md "常见问题"段，带领域知识修复
+       │
+       └─ evaluateGame(html) → 评分 ≥ 80 → 交付
 ```
 
-## 配置说明（最少即可跑）
+### Skill 系统（[AgentSkills.io](https://agentskills.io) 规范）
 
-- 必填环境变量：
-  - `ALIYUN_API_KEY`：阿里云百炼 API Key（后端从 `spring.ai.dashscope.api-key` 读取）。
+每个 Skill 是一个目录，不是代码：
 
-- 可选环境变量：
-  - `SERVER_PORT`：后端端口（默认 8088）
-  - `BACKEND_URL`：前端代理后端地址（默认 http://localhost:8088）
-  - `AGENT_RAG_TYPE`：`elasticsearch | memory | none`（默认 memory）
-  - `PROXY_ENABLED/TYPE/HOST/PORT`：为出网模型配置 HTTP/SOCKS5 代理
+```
+resources/skills/
+├── math_adventure/
+│   ├── SKILL.md              # 操作手册（LLM 读这个理解怎么做）
+│   └── assets/template.html  # HTML 参考模板
+├── memory_master/
+├── english_explorer/
+├── traffic_safety/
+├── shape_colors/
+└── logic_puzzle/
+```
 
-- RAG（可选）：
+SKILL.md 分两层：**frontmatter 给机器用**（发现 + 过滤），**body 给 LLM 读**（理解 + 执行）：
+```markdown
+---
+name: math_adventure          # 机器用：匹配、路由
+description: 数学加减法游戏...
+gameType: quiz
+tags: [数学, 加法]
+---
+# 数学冒险                    # LLM 读：操作手册
+## 生成步骤 / ## 评估重点 / ## 常见问题
+```
+
+### 后端包结构
+
+```
+com.sumo.agent/
+├── api/           # REST 端点
+├── infra/         # 基础设施（模型配置/存储/Jackson）
+├── knowledge/     # RAG 知识层
+├── agent/         # 核心域
+│   ├── loop/      #   AgentLoop + WorkingMemory
+│   ├── tools/     #   5 个 Tool Bean（Skill/Generation/Evaluation）
+│   ├── skill/     #   Skill 接口 + SkillLoader（解析 SKILL.md）
+│   └── evaluation/#   Playwright GameEvaluator
+└── legacy/        # V1 遗留（@Deprecated）
+```
+
+### 扩展一个新游戏（V2 方式）
+
+不需要写 Java 代码，创建 SKILL.md 文件即可：
+
 ```bash
-./es-manage.sh                 # 管理脚本
-# 或
+mkdir -p game-agent-backend/src/main/resources/skills/my_game/assets
+```
+
+写 `skills/my_game/SKILL.md`：
+```markdown
+---
+name: my_game
+description: 什么游戏、什么时候用。
+gameType: quiz
+tags: [关键词]
+---
+# 我的游戏
+## 何时使用 / ## 生成步骤 / ## 评估重点 / ## 常见问题
+```
+
+重启应用即可生效。
+
+---
+
+## V1 架构（Legacy）
+
+V1 代码保留在 `legacy/` 包中，通过 `POST /api/game/generate` 仍可访问。
+
+```
+用户输入 → IntentAnalyzer（规则引擎）→ GameGeneratorAgent → 子 Agent.run()
+    ├── MathGameAgent（内置 HTML 模板）
+    ├── MemoryGameAgent（内置模板）
+    └── UniversalGameAgent（LLM 单次生成）
+```
+
+V1 方式扩展：继承 `BaseAgent` 写 Java 类，启动后自动注册。
+
+---
+
+## 配置说明
+
+- 必填：`ALIYUN_API_KEY`（阿里云百炼 API Key）
+- 可选：
+  - `SERVER_PORT`：后端端口（默认 8088）
+  - `AGENT_RAG_TYPE`：`memory`（默认）/ `elasticsearch` / `none`
+  - `PROXY_ENABLED/TYPE/HOST/PORT`：代理配置
+
+RAG（可选）：
+```bash
 docker-compose up -d elasticsearch
-docker-compose logs -f elasticsearch
 ```
 
-## 模型与来源可视化
+## API
 
-- 响应卡片会显示：`Agent：{名称}（系统内置/大模型实时生成）` 与 `模型：{modelName}`。
-- 后端 DEBUG 日志会打印完整提示词（System/User），方便复现与调参。
+```bash
+# V2（推荐）：AgentLoop 多轮迭代
+POST /api/game/v2/generate
+{ "userInput": "给6岁孩子做一个10以内加法游戏" }
 
-## API（精简版）
-
-- 生成游戏：
-```
+# V1（兼容）：传统 Agent 单次生成
 POST /api/game/generate
-Content-Type: application/json
-{
-  "userInput": "给6岁孩子做一个10以内加法游戏",
-  "options": { "model": "deepseek" }
-}
-```
+{ "userInput": "...", "options": { "model": "deepseek" } }
 
-- 获取已注册的 Agent 列表：
-```
+# Agent 列表
 GET /api/game/agents
 ```
 
-## 开发者指南：扩展一个新游戏 Agent
+## 路线图
 
-新建一个类继承 `BaseAgent`，实现 `execute()` 并返回 `{ html, gameData, type }`：
-```java
-@Component("yourGameAgent")
-public class YourGameAgent extends BaseAgent {
-    @Override
-    public void execute(AgentContext context) {
-        // 生成 html / 数据
-        context.setResult(Map.of("html", "<!DOCTYPE html>..."));
-        context.setSuccess(true);
-    }
-    @Override public String getName() { return "你的游戏Agent"; }
-}
-```
-
-启动后会被自动注册；在对话中描述即可触发。
-
-## 路线图（Roadmap）
-
-- 更多学科模板（语文/科学/艺术）与组合玩法
-- 可玩性自动评分器 + 策略修正回路
+- ~~可玩性自动评分器 + 策略修正回路~~ ✅ 已实现（Playwright + ProbeReport + fixGame）
+- ~~Skill 系统~~ ✅ 已实现（SKILL.md + AgentSkills.io 规范）
+- 更多学科 Skill（语文/科学/艺术）
 - 家长端报告/进度追踪/分级推荐
-- WebAssembly 沙盒执行（更强隔离）
+- WebAssembly 沙盒执行
 - 更多模型后端与离线小模型适配
 
 ## 贡献

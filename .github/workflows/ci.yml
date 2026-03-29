@@ -1,0 +1,43 @@
+name: Java CI - Build Verification
+
+on:
+  push:
+    branches: [ feat/agent-loop-upgrade, main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: maven
+
+    - name: Build backend
+      working-directory: game-agent-backend
+      run: mvn compile -q -DskipTests
+
+    - name: Verify Skill YAML files
+      working-directory: game-agent-backend
+      run: |
+        echo "=== Checking Skill files ==="
+        for f in src/main/resources/skills/*.yaml; do
+          echo "✅ Found: $f ($(wc -l < "$f") lines)"
+        done
+
+    - name: Build summary
+      if: always()
+      run: |
+        echo "### Build Result 🏗️" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- **Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Skills**: $(ls game-agent-backend/src/main/resources/skills/*.yaml | wc -l) YAML files" >> $GITHUB_STEP_SUMMARY
