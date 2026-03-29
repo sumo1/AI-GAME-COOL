@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>交通安全小卫士</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-user-select: none; user-select: none; }
+        body { font-family: 'Comic Sans MS', cursive, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 10px; }
+        .header { display: flex; gap: 15px; margin-bottom: 10px; flex-wrap: wrap; justify-content: center; }
+        .info-box { background: rgba(255,255,255,0.95); padding: 10px 18px; border-radius: 15px; font-size: 16px; font-weight: bold; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+        #gameCanvas { background: #e0e0e0; border: 3px solid #333; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); max-width: 95vw; }
+        .traffic-light { display: flex; gap: 8px; background: #333; padding: 8px 12px; border-radius: 10px; margin-bottom: 10px; }
+        .light { width: 30px; height: 30px; border-radius: 50%; opacity: 0.3; transition: opacity 0.3s; }
+        .light.active { opacity: 1; box-shadow: 0 0 15px currentColor; }
+        .red { background-color: #ef4444; }
+        .yellow { background-color: #eab308; }
+        .green { background-color: #22c55e; }
+        .controls { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; justify-content: center; }
+        .ctrl-btn { background: linear-gradient(135deg, #667eea, #764ba2); color: white; border: none; padding: 16px 22px; font-size: 1.3em; border-radius: 12px; cursor: pointer; min-width: 60px; min-height: 50px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+        .ctrl-btn:active { transform: scale(0.95); }
+        #startOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; z-index: 100; padding: 20px; }
+        #startOverlay h1 { font-size: 2em; margin-bottom: 15px; text-align: center; }
+        .rules { background: rgba(255,255,255,0.1); padding: 20px; border-radius: 15px; max-width: 450px; margin-bottom: 20px; text-align: center; }
+        .rules h2 { font-size: 1.2em; margin-bottom: 10px; color: #ffd700; }
+        .rules li { margin: 6px 0; font-size: 0.95em; list-style: none; }
+        .start-btn { background: linear-gradient(135deg, #f093fb, #f5576c); color: white; border: none; padding: 18px 40px; font-size: 1.3em; border-radius: 50px; cursor: pointer; box-shadow: 0 8px 20px rgba(0,0,0,0.3); }
+        .start-btn:active { transform: scale(0.95); }
+        #message { position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); background: rgba(255,255,255,0.95); padding: 25px 40px; border-radius: 20px; font-size: 1.3em; font-weight: bold; text-align: center; display: none; z-index: 50; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+        .msg-success { color: #22c55e; }
+        .msg-warning { color: #ef4444; }
+        .msg-info { color: #3b82f6; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="info-box">🎯 分数: <span id="score">0</span></div>
+        <div class="traffic-light">
+            <div class="light red active" id="redLight"></div>
+            <div class="light yellow" id="yellowLight"></div>
+            <div class="light green" id="greenLight"></div>
+        </div>
+        <div class="info-box">📍 关卡: <span id="level">1</span>/3</div>
+    </div>
+
+    <canvas id="gameCanvas" width="700" height="500"></canvas>
+
+    <div class="controls">
+        <button class="ctrl-btn" id="upBtn">⬆️</button>
+        <button class="ctrl-btn" id="downBtn">⬇️</button>
+        <button class="ctrl-btn" id="leftBtn">⬅️</button>
+        <button class="ctrl-btn" id="rightBtn">➡️</button>
+    </div>
+
+    <div id="message"></div>
+
+    <div id="startOverlay">
+        <h1>🚗 交通安全小卫士 🚦</h1>
+        <div class="rules">
+            <h2>🎮 游戏规则</h2>
+            <ul>
+                <li>🚶 控制小朋友安全过马路</li>
+                <li>🚦 红灯停，绿灯行</li>
+                <li>🦓 走斑马线获得额外分数</li>
+                <li>🚗 避开来往的车辆</li>
+                <li>⭐ 收集星星获得奖励</li>
+            </ul>
+            <h2>📊 积分规则</h2>
+            <ul>
+                <li>✅ 安全过马路 +10分</li>
+                <li>🚦 遵守信号灯 +20分</li>
+                <li>🦓 走斑马线 +15分</li>
+                <li>⭐ 收集星星 +5分</li>
+                <li>❌ 碰撞或违规 -30分</li>
+            </ul>
+        </div>
+        <button class="start-btn" id="startBtn">开始游戏 🎯</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let state = { score: 0, level: 1, playing: false, light: 'red', lightTimer: 0 };
+        const player = { x: 330, y: 460, w: 35, h: 35, speed: 5 };
+        let vehicles = [];
+        let stars = [];
+        const crosswalk = { x: 300, y: 0, w: 100, h: 500 };
+
+        class Vehicle {
+            constructor(lvl) {
+                this.w = 55 + Math.random() * 35;
+                this.h = 35;
+                this.speed = 2 + Math.random() * (lvl * 1.2);
+                this.color = 'hsl(' + Math.floor(Math.random() * 360) + ',70%,50%)';
+                this.dir = Math.random() > 0.5 ? 1 : -1;
+                this.x = this.dir === 1 ? -this.w : canvas.width;
+                this.y = 70 + Math.floor(Math.random() * 4) * 90;
+            }
+            update() { this.x += this.speed * this.dir; }
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, this.w, this.h);
+                ctx.fillStyle = 'rgba(255,255,255,0.3)';
+                ctx.fillRect(this.x + 8, this.y + 5, this.w - 16, this.h - 10);
+            }
+            offScreen() { return this.dir === 1 ? this.x > canvas.width + 50 : this.x < -this.w - 50; }
+        }
+
+        class Star {
+            constructor() {
+                this.x = Math.random() * (canvas.width - 40) + 20;
+                this.y = Math.random() * 350 + 50;
+                this.size = 20;
+                this.alive = true;
+            }
+            draw() {
+                if (!this.alive) return;
+                ctx.font = '24px Arial';
+                ctx.fillText('⭐', this.x, this.y);
+            }
+            checkHit(px, py, pw, ph) {
+                if (!this.alive) return false;
+                if (px < this.x + this.size && px + pw > this.x && py < this.y && py + ph > this.y - this.size) {
+                    this.alive = false; return true;
+                }
+                return false;
+            }
+        }
+
+        function init() {
+            state = { score: 0, level: 1, playing: true, light: 'red', lightTimer: 0 };
+            player.x = 330; player.y = 460;
+            vehicles = []; stars = [];
+            for (let i = 0; i < 3; i++) stars.push(new Star());
+            updateUI();
+        }
+
+        function updateUI() {
+            document.getElementById('score').textContent = state.score;
+            document.getElementById('level').textContent = state.level;
+        }
+
+        function showMsg(text, type, dur) {
+            const el = document.getElementById('message');
+            el.textContent = text;
+            el.className = 'msg-' + type;
+            el.style.display = 'block';
+            setTimeout(() => el.style.display = 'none', dur || 2000);
+        }
+
+        function updateLight() {
+            state.lightTimer++;
+            const cycle = state.lightTimer % 360;
+            document.querySelectorAll('.light').forEach(l => l.classList.remove('active'));
+            if (cycle < 180) { state.light = 'red'; document.getElementById('redLight').classList.add('active'); }
+            else if (cycle < 240) { state.light = 'yellow'; document.getElementById('yellowLight').classList.add('active'); }
+            else { state.light = 'green'; document.getElementById('greenLight').classList.add('active'); }
+        }
+
+        function spawnVehicle() {
+            if (Math.random() < 0.02 * state.level) vehicles.push(new Vehicle(state.level));
+        }
+
+        function checkCollisions() {
+            for (const v of vehicles) {
+                if (player.x < v.x + v.w && player.x + player.w > v.x && player.y < v.y + v.h && player.y + player.h > v.y) {
+                    state.score = Math.max(0, state.score - 30);
+                    updateUI();
+                    showMsg('💥 小心！注意安全！', 'warning');
+                    player.x = 330; player.y = 460;
+                    return;
+                }
+            }
+            for (const s of stars) {
+                if (s.checkHit(player.x, player.y, player.w, player.h)) {
+                    state.score += 5; updateUI();
+                    showMsg('⭐ +5分！', 'success', 1000);
+                }
+            }
+        }
+
+        function checkSuccess() {
+            if (player.y < 30) {
+                let bonus = 10, msg = '✅ 安全过马路！';
+                if (state.light === 'green') { bonus += 20; msg += ' 遵守信号灯！'; }
+                if (player.x >= crosswalk.x && player.x <= crosswalk.x + crosswalk.w) { bonus += 15; msg += ' 走斑马线！'; }
+                state.score += bonus; updateUI();
+                showMsg(msg + ' +' + bonus + '分', 'success');
+                player.x = 330; player.y = 460;
+                if (state.score >= state.level * 100) levelUp();
+            }
+        }
+
+        function levelUp() {
+            if (state.level < 3) {
+                state.level++; updateUI();
+                showMsg('🎉 升级到第' + state.level + '关！', 'info', 3000);
+                stars = [];
+                for (let i = 0; i < 3 + state.level; i++) stars.push(new Star());
+            } else {
+                state.playing = false;
+                showMsg('🏆 恭喜通关！你是交通安全小达人！', 'success', 5000);
+            }
+        }
+
+        function gameLoop() {
+            if (!state.playing) return;
+            ctx.fillStyle = '#e0e0e0';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 道路
+            ctx.fillStyle = '#505050';
+            ctx.fillRect(0, 40, canvas.width, 420);
+
+            // 车道线
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.setLineDash([15, 8]);
+            for (let i = 1; i < 5; i++) { ctx.beginPath(); ctx.moveTo(0, 40 + i * 84); ctx.lineTo(canvas.width, 40 + i * 84); ctx.stroke(); }
+            ctx.setLineDash([]);
+
+            // 斑马线
+            ctx.fillStyle = 'rgba(255,255,255,0.8)';
+            for (let i = 0; i < 10; i++) { if (i % 2 === 0) ctx.fillRect(crosswalk.x, i * 50, crosswalk.w, 40); }
+
+            stars.forEach(s => s.draw());
+            spawnVehicle();
+            vehicles = vehicles.filter(v => !v.offScreen());
+            vehicles.forEach(v => { v.update(); v.draw(); });
+
+            // 玩家
+            ctx.fillStyle = '#4ade80';
+            ctx.fillRect(player.x, player.y, player.w, player.h);
+            ctx.fillStyle = '#fbbf24';
+            ctx.beginPath();
+            ctx.arc(player.x + player.w/2, player.y + 12, 10, 0, Math.PI * 2);
+            ctx.fill();
+
+            updateLight();
+            checkCollisions();
+            checkSuccess();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function move(dx, dy) {
+            if (!state.playing) return;
+            player.x = Math.max(0, Math.min(canvas.width - player.w, player.x + dx));
+            player.y = Math.max(0, Math.min(canvas.height - player.h, player.y + dy));
+        }
+
+        document.addEventListener('keydown', e => {
+            const s = player.speed;
+            if (e.key === 'ArrowUp') move(0, -s);
+            else if (e.key === 'ArrowDown') move(0, s);
+            else if (e.key === 'ArrowLeft') move(-s, 0);
+            else if (e.key === 'ArrowRight') move(s, 0);
+        });
+
+        const step = 15;
+        document.getElementById('upBtn').addEventListener('click', () => move(0, -step));
+        document.getElementById('downBtn').addEventListener('click', () => move(0, step));
+        document.getElementById('leftBtn').addEventListener('click', () => move(-step, 0));
+        document.getElementById('rightBtn').addEventListener('click', () => move(step, 0));
+        ['upBtn','downBtn','leftBtn','rightBtn'].forEach(id => {
+            document.getElementById(id).addEventListener('touchstart', e => { e.preventDefault(); document.getElementById(id).click(); });
+        });
+
+        document.getElementById('startBtn').addEventListener('click', () => {
+            document.getElementById('startOverlay').style.display = 'none';
+            init();
+            gameLoop();
+        });
+
+        // 自适应
+        function resize() {
+            const w = Math.min(window.innerWidth * 0.92, 700);
+            const h = Math.min(window.innerHeight * 0.55, 500);
+            canvas.width = w; canvas.height = h;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+    </script>
+</body>
+</html>

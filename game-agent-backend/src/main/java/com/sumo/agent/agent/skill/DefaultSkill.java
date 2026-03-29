@@ -24,25 +24,28 @@ public class DefaultSkill implements Skill {
     }
 
     /**
-     * 生成引导：基于 promptHint + 评估标准构造增强的生成指令。
-     * 不是简单返回 promptHint，而是把评估标准也注入，让 LLM 在生成时就知道"会被查什么"。
+     * 生成引导：优先返回 SKILL.md 操作手册（instructions），
+     * 回退到旧格式的 promptHint + evaluationCriteria。
      */
     @Override
     public String getGenerationGuidance() {
-        StringBuilder sb = new StringBuilder();
 
+        // SKILL.md 格式：instructions 就是完整的操作手册
+        if (definition.getInstructions() != null && !definition.getInstructions().isBlank()) {
+            return definition.getInstructions();
+        }
+
+        // 旧 YAML 格式回退
+        StringBuilder sb = new StringBuilder();
         if (definition.getPromptHint() != null) {
             sb.append(definition.getPromptHint()).append("\n\n");
         }
-
-        // 把评估标准注入生成引导——让 LLM 生成时就知道会被查什么
         if (definition.getEvaluationCriteria() != null && !definition.getEvaluationCriteria().isEmpty()) {
             sb.append("## 此类游戏的质量检查项（生成时必须满足）\n");
             for (String criterion : definition.getEvaluationCriteria()) {
                 sb.append("- ").append(criterion).append("\n");
             }
         }
-
         return sb.toString();
     }
 

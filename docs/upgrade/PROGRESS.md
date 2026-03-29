@@ -12,6 +12,7 @@
 | **P4** | 优化完善 | ✅ 完成 | 100% | 上下文管理/容错/性能/文档 |
 | **P5** | 工程结构重构 | ✅ 完成 | 100% | 领域驱动包结构 + GameTools 拆分 + v1 归档 |
 | **P6** | Skill 架构升级 | ✅ 完成 | 100% | Skill 从数据袋升级为可执行策略单元 |
+| **P7** | Skill 格式升级 | ✅ 完成 | 100% | YAML → SKILL.md 目录结构（AgentSkills.io 规范） |
 
 ---
 
@@ -79,4 +80,15 @@
 
 ---
 
-*最后更新：2026-03-29 17:00*
+## Phase 7 明细 ✅ 100%
+
+| 任务 | 状态 | 说明 |
+|------|------|------|
+| 7.1 SKILL.md 文件迁移 | ✅ | 6 个 YAML → 6 个目录（SKILL.md + assets/template.html） |
+| 7.2 SkillLoader 改造 | ✅ | 解析 frontmatter + body，自动提取评估重点/常见问题段，向后兼容旧 YAML |
+| 7.3 Tool 层适配 | ✅ | SkillLoadTool 返回操作手册，DefaultSkill 优先使用 instructions |
+| 7.4 测试+文档 | ✅ | mvn compile + test 通过 |
+
+---
+
+*最后更新：2026-03-29 18:00*

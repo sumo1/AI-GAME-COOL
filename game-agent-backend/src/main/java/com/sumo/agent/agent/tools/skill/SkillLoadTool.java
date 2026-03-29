@@ -53,24 +53,32 @@ public class SkillLoadTool {
 
             SkillDefinition def = opt.get();
             StringBuilder sb = new StringBuilder();
-            sb.append("# Skill: ").append(def.getDisplayName()).append("\n\n");
-            sb.append("**描述**: ").append(def.getDescription()).append("\n");
-            sb.append("**年龄段**: ").append(def.getAgeGroup()).append("\n");
-            sb.append("**游戏类型**: ").append(def.getGameType()).append("\n\n");
 
-            // 输出 Skill 生成引导（不是简单的 promptHint，而是增强版）
-            Skill skill = skillOpt.orElse(null);
-            if (skill != null) {
-                String guidance = skill.getGenerationGuidance();
-                if (guidance != null && !guidance.isBlank()) {
-                    sb.append("## 生成引导\n").append(guidance).append("\n\n");
+            // SKILL.md 格式：直接返回操作手册（Agent 读这个理解怎么做）
+            if (def.getInstructions() != null && !def.getInstructions().isBlank()) {
+                sb.append(def.getInstructions());
+            } else {
+                // 旧 YAML 格式回退
+                sb.append("# Skill: ").append(def.getDisplayName()).append("\n\n");
+                sb.append("**描述**: ").append(def.getDescription()).append("\n");
+                sb.append("**年龄段**: ").append(def.getAgeGroup()).append("\n");
+                sb.append("**游戏类型**: ").append(def.getGameType()).append("\n\n");
+
+                if (def.getPromptHint() != null) {
+                    sb.append("## 生成提示\n").append(def.getPromptHint()).append("\n\n");
                 }
-            } else if (def.getPromptHint() != null) {
-                sb.append("## 生成提示\n").append(def.getPromptHint()).append("\n\n");
+                if (def.getEvaluationCriteria() != null && !def.getEvaluationCriteria().isEmpty()) {
+                    sb.append("## 评估标准\n");
+                    for (String c : def.getEvaluationCriteria()) {
+                        sb.append("- ").append(c).append("\n");
+                    }
+                    sb.append("\n");
+                }
             }
 
+            // 附加 HTML 模板（如果有）
             if (def.getTemplate() != null) {
-                sb.append("## HTML 模板\n```html\n").append(def.getTemplate()).append("\n```\n");
+                sb.append("\n## HTML 模板\n```html\n").append(def.getTemplate()).append("\n```\n");
             }
 
             return sb.toString();

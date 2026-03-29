@@ -177,6 +177,36 @@ evaluation_criteria:
 
 ## 3. 进度日志
 
+### Phase 7：Skill 格式升级（AgentSkills.io 规范）
+
+**背景**：P6 的 Skill 虽然有了接口和代码检查，但 YAML 格式仍是"给 Java 解析的结构化数据"，不是"给 Agent 阅读的操作手册"。参考 AgentSkills.io 开放规范，Skill 应该是一个目录，包含 SKILL.md（操作手册）+ 可选的 scripts/assets。
+
+**目标**：将 YAML 平铺格式升级为 SKILL.md 目录结构，Agent 通过渐进式披露（Progressive Disclosure）使用 Skill：发现（name+description）→ 激活（读 SKILL.md）→ 执行（按指示调工具）。
+
+**新目录结构**：
+```
+resources/skills/
+├── math_adventure/
+│   ├── SKILL.md              # 操作手册：何时使用 / 生成步骤 / 评估重点 / 常见问题
+│   └── assets/
+│       └── template.html     # HTML 模板
+├── memory_master/
+│   ├── SKILL.md
+│   └── assets/
+│       └── template.html
+└── ...（6 个 Skill 目录）
+```
+
+| # | 任务 | 状态 | 说明 |
+|---|------|------|------|
+| 7.1 | SKILL.md 文件迁移 | 🔲 待开始 | 6 个 YAML → 6 个目录（SKILL.md + assets/template.html） |
+| 7.2 | SkillLoader 改造 | 🔲 待开始 | 解析 SKILL.md frontmatter + body，加载 assets/template.html |
+| 7.3 | Skill + Tool 层适配 | 🔲 待开始 | SkillLoadTool 返回完整 SKILL.md（操作手册），不再返回结构化字段 |
+| 7.4 | 清理 + 测试 + 文档 | 🔲 待开始 | 删旧 YAML，更新测试，mvn compile + test |
+
+### 2026-03-29（下午·续2）
+- **Phase 7 Skill 格式升级启动**
+
 ### 2026-03-29（下午·续）
 - **Phase 6 Skill 架构升级启动**
 

@@ -19,6 +19,9 @@ public class SkillDefinition {
     private List<String> evaluationCriteria;
     private List<FixHint> fixHints;
 
+    /** SKILL.md 完整 body（Markdown 操作手册），SkillLoader 解析后设置 */
+    private String instructions;
+
     // --- getters / setters ---
 
     public String getName() { return name; }
@@ -53,6 +56,9 @@ public class SkillDefinition {
 
     public List<FixHint> getFixHints() { return fixHints; }
     public void setFixHints(List<FixHint> fixHints) { this.fixHints = fixHints; }
+
+    public String getInstructions() { return instructions; }
+    public void setInstructions(String instructions) { this.instructions = instructions; }
 
     /**
      * 返回摘要信息（供 list_skills 使用）
