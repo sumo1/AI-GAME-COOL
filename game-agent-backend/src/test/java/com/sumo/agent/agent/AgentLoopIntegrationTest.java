@@ -307,25 +307,8 @@ class AgentLoopIntegrationTest {
         }
 
         @Test
-        @DisplayName("DefaultSkill.getFixHints 返回 YAML 定义的修复提示")
-        void testFixHints() {
-            SkillDefinition def = new SkillDefinition();
-            def.setFixHints(List.of(
-                    new FixHint("答案错误", "检查算术逻辑"),
-                    new FixHint("布局溢出", "限制容器高度")
-            ));
-
-            Skill skill = new DefaultSkill(def);
-            List<FixHint> hints = skill.getFixHints();
-
-            assertEquals(2, hints.size());
-            assertEquals("答案错误", hints.get(0).symptom());
-            assertEquals("检查算术逻辑", hints.get(0).solution());
-        }
-
-        @Test
-        @DisplayName("DefaultSkill.getFixHints 无 fixHints 时返回空列表")
-        void testEmptyFixHints() {
+        @DisplayName("DefaultSkill.getFixHints 始终返回空（LLM 读 SKILL.md 常见问题段）")
+        void testFixHintsAlwaysEmpty() {
             SkillDefinition def = new SkillDefinition();
             Skill skill = new DefaultSkill(def);
             assertTrue(skill.getFixHints().isEmpty());

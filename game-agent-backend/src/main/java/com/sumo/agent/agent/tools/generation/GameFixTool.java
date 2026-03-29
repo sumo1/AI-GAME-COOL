@@ -1,8 +1,6 @@
 package com.sumo.agent.agent.tools.generation;
 
 import com.sumo.agent.agent.loop.WorkingMemory;
-import com.sumo.agent.agent.skill.FixHint;
-import com.sumo.agent.agent.skill.Skill;
 import com.sumo.agent.agent.tools.ToolContext;
 import com.sumo.agent.infra.model.ChatModelRegistry;
 import lombok.extern.slf4j.Slf4j;
@@ -54,17 +52,8 @@ public class GameFixTool {
         try {
             String systemPrompt = fullRewrite ? FIX_FULL_REWRITE_PROMPT : FIX_INCREMENTAL_PROMPT;
 
-            // 如果有激活的 Skill，注入其修复策略
-            Skill activeSkill = toolContext.getActiveSkill();
-            if (activeSkill != null && !activeSkill.getFixHints().isEmpty()) {
-                StringBuilder fixHintsBlock = new StringBuilder("\n\n## 此类游戏的已知问题和修复方案\n");
-                for (FixHint hint : activeSkill.getFixHints()) {
-                    fixHintsBlock.append("- **症状**: ").append(hint.symptom())
-                            .append(" → **方案**: ").append(hint.solution()).append("\n");
-                }
-                systemPrompt += fixHintsBlock;
-                log.info("[fixGame] 已注入 {} 条 Skill 修复提示", activeSkill.getFixHints().size());
-            }
+            // Skill 的修复策略已在 SKILL.md "常见问题" 段落中，LLM 在 loadSkill 时已读到
+            // 不需要代码层再注入
 
             String userPrompt;
             if (fullRewrite) {

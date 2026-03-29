@@ -10,13 +10,15 @@ import jakarta.annotation.PostConstruct;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
- * Skill 加载器 — 从 classpath:skills/{name}/SKILL.md 加载 Skill（AgentSkills.io 规范）。
+ * Skill 加载器 — 从 classpath:skills/{name}/SKILL.md 加载 Skill。
  * <p>
- * 每个 Skill 是一个目录：SKILL.md（frontmatter + 操作手册）+ assets/template.html（可选）。
+ * 遵循 AgentSkills.io 规范 + OpenClaw 实现模式：
+ * <ul>
+ *   <li>Frontmatter（YAML）：机器可读的元数据，用于发现和过滤</li>
+ *   <li>Body（Markdown）：原样传给 LLM，不做结构化解析</li>
+ * </ul>
  */
 @Slf4j
 @Component
@@ -35,33 +37,28 @@ public class SkillLoader {
             PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
             Resource[] skillMdFiles = resolver.getResources("classpath:skills/*/SKILL.md");
 
-            for (Resource skillMdResource : skillMdFiles) {
+            for (Resource res : skillMdFiles) {
                 try {
-                    String content = skillMdResource.getContentAsString(StandardCharsets.UTF_8);
+                    String content = res.getContentAsString(StandardCharsets.UTF_8);
                     SkillDefinition def = parseSkillMd(content);
 
                     if (def == null || def.getName() == null) {
-                        log.warn("SKILL.md 解析失败（无 name）: {}", skillMdResource.getURL());
+                        log.warn("SKILL.md 解析失败（无 name）: {}", res.getURL());
                         continue;
                     }
 
-                    // 加载 assets/template.html
+                    // 加载 assets/template.html（可选）
                     loadTemplate(resolver, def);
 
-                    // 从 SKILL.md body 解析结构化段落
-                    parseStructuredSections(def);
-
                     definitions.put(def.getName(), def);
-                    Skill skill = new DefaultSkill(def);
-                    skills.put(def.getName(), skill);
+                    skills.put(def.getName(), new DefaultSkill(def));
 
-                    log.info("加载 Skill: {} [{}项检查, {}项修复提示]",
-                            def.getName(),
-                            skill.getEvaluationChecks().size(),
-                            skill.getFixHints().size());
+                    log.info("加载 Skill: {} ({})", def.getName(), def.getDescription() != null
+                            ? def.getDescription().substring(0, Math.min(40, def.getDescription().length())) + "..."
+                            : "?");
 
                 } catch (Exception e) {
-                    log.warn("加载 SKILL.md 失败: {}", skillMdResource.getFilename(), e);
+                    log.warn("加载 SKILL.md 失败: {}", res.getFilename(), e);
                 }
             }
 
@@ -72,7 +69,7 @@ public class SkillLoader {
     }
 
     /**
-     * 解析 SKILL.md：frontmatter（YAML）+ body（Markdown）
+     * 解析 SKILL.md：frontmatter → 元数据（机器用），body → 原样保留（LLM 读）
      */
     @SuppressWarnings("unchecked")
     private SkillDefinition parseSkillMd(String content) {
@@ -99,7 +96,9 @@ public class SkillLoader {
             def.setTags(((List<Object>) tagsObj).stream().map(String::valueOf).toList());
         }
 
+        // Body 原样保留，不做结构化解析——LLM 自己读
         def.setInstructions(body);
+
         return def;
     }
 
@@ -113,63 +112,6 @@ public class SkillLoader {
         } catch (Exception e) {
             log.debug("未找到模板: {}/assets/template.html", def.getName());
         }
-    }
-
-    /**
-     * 从 SKILL.md body 解析结构化段落：评估重点 → evaluationCriteria，常见问题 → fixHints
-     */
-    private void parseStructuredSections(SkillDefinition def) {
-        String body = def.getInstructions();
-        if (body == null || body.isEmpty()) return;
-
-        def.setEvaluationCriteria(parseListSection(body, "评估重点"));
-        def.setFixHints(parseFixHintsSection(body));
-    }
-
-    private List<String> parseListSection(String body, String sectionTitle) {
-        Pattern sectionPattern = Pattern.compile("^##\\s+" + Pattern.quote(sectionTitle) + "\\s*$", Pattern.MULTILINE);
-        Matcher m = sectionPattern.matcher(body);
-        if (!m.find()) return List.of();
-
-        int start = m.end();
-        Pattern nextSection = Pattern.compile("^##\\s+", Pattern.MULTILINE);
-        Matcher nextM = nextSection.matcher(body);
-        int end = body.length();
-        if (nextM.find(start)) {
-            end = nextM.start();
-        }
-
-        String section = body.substring(start, end);
-        List<String> items = new ArrayList<>();
-        Pattern listItem = Pattern.compile("^-\\s+(.+)$", Pattern.MULTILINE);
-        Matcher listM = listItem.matcher(section);
-        while (listM.find()) {
-            items.add(listM.group(1).trim());
-        }
-        return items;
-    }
-
-    private List<FixHint> parseFixHintsSection(String body) {
-        Pattern sectionPattern = Pattern.compile("^##\\s+常见问题\\s*$", Pattern.MULTILINE);
-        Matcher m = sectionPattern.matcher(body);
-        if (!m.find()) return List.of();
-
-        int start = m.end();
-        Pattern nextSection = Pattern.compile("^##\\s+", Pattern.MULTILINE);
-        Matcher nextM = nextSection.matcher(body);
-        int end = body.length();
-        if (nextM.find(start)) {
-            end = nextM.start();
-        }
-
-        String section = body.substring(start, end);
-        List<FixHint> hints = new ArrayList<>();
-        Pattern hintPattern = Pattern.compile("-\\s+\\*\\*(.+?)\\*\\*\\s*[→\\->]+\\s*(.+)$", Pattern.MULTILINE);
-        Matcher hintM = hintPattern.matcher(section);
-        while (hintM.find()) {
-            hints.add(new FixHint(hintM.group(1).trim(), hintM.group(2).trim()));
-        }
-        return hints;
     }
 
     // ==================== 公共 API ====================
