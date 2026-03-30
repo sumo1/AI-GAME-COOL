@@ -15,7 +15,8 @@ import org.springframework.stereotype.Component;
 public class ChatModelRegistry {
 
     @Autowired(required = false)
-    private ChatModel defaultChatModel; // 来自 DashScopeConfig（@Primary）
+    @Qualifier("dashScopeChatModel")
+    private ChatModel defaultChatModel; // 显式指定 DashScopeConfig 的 Bean 名
 
     @Autowired(required = false)
     @Qualifier("kimiK2ChatModel")

@@ -17,7 +17,7 @@ import io.micrometer.observation.ObservationRegistry;
 @Configuration
 public class KimiDashScopeConfig {
 
-    private static final String DASHSCOPE_OPENAI_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
+    private static final String DASHSCOPE_OPENAI_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode";
 
     @Value("${spring.ai.dashscope.api-key:}")
     private String apiKey;

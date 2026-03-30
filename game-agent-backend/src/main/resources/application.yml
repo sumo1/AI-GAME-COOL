@@ -12,10 +12,8 @@ spring:
   application:
     name: game-agent-backend
 
-  # Jackson配置
+  # Jackson 配置（Java 代码中 JacksonConfig 已处理 JavaTimeModule + 禁用时间戳）
   jackson:
-    serialization:
-      write-dates-as-timestamps: false
     date-format: yyyy-MM-dd HH:mm:ss
     time-zone: GMT+8
 
@@ -25,13 +23,13 @@ spring:
     dashscope:
       api-key: ${ALIYUN_API_KEY}  # 请设置你的阿里云API key
     
-    # OpenAI兼容模式（通过阿里云百炼）
+    # OpenAI 配置（Spring AI 自动配置需要，实际走 DashScope 兼容 API）
     openai:
-      api-key: ${DASHSCOPE_API_KEY:your-dashscope-key}
-      base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
+      api-key: ${ALIYUN_API_KEY:sk-placeholder}
+      base-url: https://dashscope.aliyuncs.com/compatible-mode
       chat:
         options:
-          model: ${AI_MODEL:qwen-plus}  # 使用通义千问Plus
+          model: ${AI_MODEL:qwen-plus}
           temperature: 0.7
           max-tokens: 4000
 

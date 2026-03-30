@@ -256,7 +256,7 @@ public class AgentLoop {
 
             ## 工具使用说明
 
-            - **Skill**：使用 skill 名称调用，获取该类游戏的操作手册和参考模板
+            - **Skill**：调用 Skill 工具，传入 skill 名称作为 command 参数（如 command="math_adventure"），获取操作手册和模板
             - **evaluateGame**：传入 HTML 代码，返回评估报告（含评分和问题列表）
             - **fixGame**：传入问题描述，自动从工作记忆获取当前 HTML 并修复
             - 评估和修复会自动更新工作记忆中的游戏状态

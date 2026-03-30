@@ -117,7 +117,7 @@ public class GameEvaluator {
      * 根据 gameType 自动派生 EvaluationCheck 列表。
      * 这些是代码级检查——LLM 做不到的事（检查 HTML 结构和 Probe 运行时数据）。
      */
-    List<EvaluationCheck> deriveChecksForGameType(String gameType) {
+    public List<EvaluationCheck> deriveChecksForGameType(String gameType) {
         List<EvaluationCheck> checks = new ArrayList<>();
 
         // 通用检查：所有游戏都该有
