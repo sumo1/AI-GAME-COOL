@@ -1,11 +1,11 @@
 package com.sumo.agent.infra.model;
 
-import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatModel;
-import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatOptions;
-import com.alibaba.cloud.ai.dashscope.api.DashScopeApi;
 import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.ai.openai.OpenAiChatModel;
+import org.springframework.ai.openai.OpenAiChatOptions;
+import org.springframework.ai.openai.api.OpenAiApi;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
@@ -14,13 +14,18 @@ import io.micrometer.observation.ObservationRegistry;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * 阿里云百炼（DashScope）配置类
+ * 阿里云百炼（DashScope）配置类 — 通过 OpenAI 兼容 API 访问
+ * <p>
+ * spring-ai-alibaba 暂不兼容 Spring AI 2.0 / Spring Boot 4.x，
+ * 改用 DashScope 的 OpenAI 兼容端点：https://dashscope.aliyuncs.com/compatible-mode/v1
  */
 @Slf4j
 @Configuration
 public class DashScopeConfig {
 
-    @Value("${spring.ai.dashscope.api-key}")
+    private static final String DASHSCOPE_OPENAI_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
+
+    @Value("${spring.ai.dashscope.api-key:}")
     private String apiKey;
 
     @Value("${spring.ai.openai.chat.options.model:qwen-plus-2025-07-28}")
@@ -39,38 +44,36 @@ public class DashScopeConfig {
     private ObservationRegistry observationRegistry;
 
     @Bean
-    @Primary  // 设置为主要的ChatModel
+    @Primary
     public ChatModel dashScopeChatModel() {
-        log.info("配置阿里云百炼 ChatModel - 模型: {}", model);
+        log.info("配置阿里云百炼 ChatModel（OpenAI 兼容模式）- 模型: {}", model);
 
-        // 使用Builder模式创建DashScope API客户端
-        DashScopeApi.Builder apiBuilder = DashScopeApi.builder()
+        OpenAiApi.Builder apiBuilder = OpenAiApi.builder()
+                .baseUrl(DASHSCOPE_OPENAI_BASE_URL)
                 .apiKey(apiKey);
 
         if (restClientBuilder != null) {
             apiBuilder.restClientBuilder(restClientBuilder);
         }
 
-        DashScopeApi dashScopeApi = apiBuilder.build();
+        OpenAiApi openAiApi = apiBuilder.build();
 
-        // 配置聊天选项
-        DashScopeChatOptions options = DashScopeChatOptions.builder()
-                .withModel(model)
-                .withTemperature(temperature)
+        OpenAiChatOptions options = OpenAiChatOptions.builder()
+                .model(model)
+                .temperature(temperature)
+                .maxTokens(maxTokens)
                 .build();
 
-        // 使用Builder模式创建ChatModel
-        DashScopeChatModel.Builder modelBuilder = DashScopeChatModel.builder()
-                .dashScopeApi(dashScopeApi)
+        OpenAiChatModel.Builder modelBuilder = OpenAiChatModel.builder()
+                .openAiApi(openAiApi)
                 .defaultOptions(options);
 
         if (observationRegistry != null) {
             modelBuilder.observationRegistry(observationRegistry);
         }
 
-        DashScopeChatModel chatModel = modelBuilder.build();
-
-        log.info("阿里云百炼 ChatModel配置完成 - 使用模型: {}", model);
+        OpenAiChatModel chatModel = modelBuilder.build();
+        log.info("阿里云百炼 ChatModel 配置完成（OpenAI 兼容模式）");
         return chatModel;
     }
 }

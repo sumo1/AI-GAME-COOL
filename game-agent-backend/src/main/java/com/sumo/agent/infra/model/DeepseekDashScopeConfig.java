@@ -1,21 +1,23 @@
 package com.sumo.agent.infra.model;
 
-import com.alibaba.cloud.ai.dashscope.api.DashScopeApi;
-import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatModel;
-import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatOptions;
-import io.micrometer.observation.ObservationRegistry;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.openai.OpenAiChatModel;
+import org.springframework.ai.openai.OpenAiChatOptions;
+import org.springframework.ai.openai.api.OpenAiApi;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.client.RestClient;
+import io.micrometer.observation.ObservationRegistry;
 
 /**
- * DeepSeek 模型（阿里云百炼 deepseek-v3.1）。
+ * DeepSeek 模型（阿里云百炼 OpenAI 兼容模式）
  */
 @Configuration
 public class DeepseekDashScopeConfig {
+
+    private static final String DASHSCOPE_OPENAI_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
 
     @Value("${spring.ai.dashscope.api-key:}")
     private String apiKey;
@@ -26,25 +28,25 @@ public class DeepseekDashScopeConfig {
     @Autowired(required = false)
     private ObservationRegistry observationRegistry;
 
-    /**
-     * DeepSeek ChatModel（模型名：deepseek-v3.1）
-     */
     @Bean("deepseekChatModel")
     public ChatModel deepseekChatModel() {
-        DashScopeApi.Builder apiBuilder = DashScopeApi.builder().apiKey(apiKey);
+        OpenAiApi.Builder apiBuilder = OpenAiApi.builder()
+                .baseUrl(DASHSCOPE_OPENAI_BASE_URL)
+                .apiKey(apiKey);
+
         if (restClientBuilder != null) {
             apiBuilder.restClientBuilder(restClientBuilder);
         }
 
-        DashScopeApi api = apiBuilder.build();
+        OpenAiApi openAiApi = apiBuilder.build();
 
-        DashScopeChatOptions options = DashScopeChatOptions.builder()
-                .withModel("deepseek-v3.1")
-                .withTemperature(0.7)
+        OpenAiChatOptions options = OpenAiChatOptions.builder()
+                .model("deepseek-v3.1")
+                .temperature(0.7)
                 .build();
 
-        DashScopeChatModel.Builder modelBuilder = DashScopeChatModel.builder()
-                .dashScopeApi(api)
+        OpenAiChatModel.Builder modelBuilder = OpenAiChatModel.builder()
+                .openAiApi(openAiApi)
                 .defaultOptions(options);
 
         if (observationRegistry != null) {

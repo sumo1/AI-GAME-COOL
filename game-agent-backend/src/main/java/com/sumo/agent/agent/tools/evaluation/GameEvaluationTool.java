@@ -3,8 +3,6 @@ package com.sumo.agent.agent.tools.evaluation;
 import com.sumo.agent.agent.evaluation.GameEvaluator;
 import com.sumo.agent.agent.evaluation.ProbeReport;
 import com.sumo.agent.agent.loop.WorkingMemory;
-import com.sumo.agent.agent.skill.EvaluationCheck;
-import com.sumo.agent.agent.skill.Skill;
 import com.sumo.agent.agent.tools.ToolContext;
 import com.sumo.agent.agent.tools.generation.ErrorClassifier;
 import lombok.extern.slf4j.Slf4j;
@@ -38,19 +36,16 @@ public class GameEvaluationTool {
             @ToolParam(description = "要评估的完整 HTML 游戏代码") String htmlCode) {
         log.info("[evaluateGame] 开始评估游戏 ({} 字符)", htmlCode.length());
 
-        // 超时保护：Playwright 评估最多 30 秒
+        // 超时保护
         ExecutorService executor = Executors.newSingleThreadExecutor();
         try {
-            // 获取 Skill 特定的评估检查（如果有 activeSkill）
-            Skill activeSkill = toolContext.getActiveSkill();
-            List<EvaluationCheck> skillChecks = (activeSkill != null)
-                    ? activeSkill.getEvaluationChecks()
-                    : List.of();
+            // 从 ToolContext 获取 activeSkill 的 gameType，传给 GameEvaluator
+            String gameType = toolContext.getActiveGameType();
 
             Future<ProbeReport> future = executor.submit(() ->
-                    skillChecks.isEmpty()
-                            ? gameEvaluator.evaluate(htmlCode)
-                            : gameEvaluator.evaluate(htmlCode, skillChecks));
+                    gameType != null
+                            ? gameEvaluator.evaluate(htmlCode, gameType)
+                            : gameEvaluator.evaluate(htmlCode));
             ProbeReport report;
             try {
                 report = future.get(EVALUATE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
@@ -88,9 +83,6 @@ public class GameEvaluationTool {
         }
     }
 
-    /**
-     * 构建降级评估报告（Playwright 超时时使用）
-     */
     private String buildDegradedEvalReport(String htmlCode) {
         StringBuilder sb = new StringBuilder();
         sb.append("## 游戏评估报告（降级模式 — Playwright 超时）\n\n");
@@ -115,7 +107,6 @@ public class GameEvaluationTool {
             sb.append("- ").append(issue).append("\n");
         }
 
-        // 更新 WorkingMemory
         WorkingMemory memory = toolContext.getWorkingMemory();
         if (memory != null) {
             memory.setEvalScore(score);

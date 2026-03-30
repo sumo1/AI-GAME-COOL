@@ -4,19 +4,18 @@ import com.sumo.agent.infra.model.ChatModelRegistry;
 import com.sumo.agent.agent.skill.SkillDefinition;
 import com.sumo.agent.agent.skill.SkillLoader;
 import com.sumo.agent.agent.tools.ToolContext;
-import com.sumo.agent.agent.tools.skill.SkillListTool;
-import com.sumo.agent.agent.tools.skill.SkillLoadTool;
 import com.sumo.agent.agent.tools.generation.GameGenerationTool;
 import com.sumo.agent.agent.tools.generation.GameFixTool;
 import com.sumo.agent.agent.tools.evaluation.GameEvaluationTool;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.tool.ToolCallback;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 import java.net.SocketTimeoutException;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -26,8 +25,7 @@ import java.util.Optional;
  * ChatClient.tools(gameTools) 将 @Tool 方法暴露给 LLM。
  * Spring AI 内部自动处理 FC 循环：LLM 返回 tool_calls → 执行工具 → 返回结果 → LLM 继续。
  * <p>
- * AgentLoop 的外部循环用于质量门禁（Phase 3: evaluate → fix → 再 evaluate）。
- * Phase 1 阶段，单次 ChatClient 调用即可完成：查 Skill → 生成游戏 → 总结反馈。
+ * AgentLoop 的外部循环用于质量门禁（evaluate → fix → 再 evaluate）。
  */
 @Slf4j
 @Service
@@ -61,11 +59,9 @@ public class AgentLoop {
     @Autowired
     private ToolContext toolContext;
 
+    /** SkillsTool 回调（由 SkillsToolConfig 创建，已包装 ToolContext 拦截器） */
     @Autowired
-    private SkillListTool skillListTool;
-
-    @Autowired
-    private SkillLoadTool skillLoadTool;
+    private ToolCallback skillsToolCallback;
 
     @Autowired
     private GameGenerationTool gameGenerationTool;
@@ -96,7 +92,7 @@ public class AgentLoop {
         toolContext.init(memory);
         log.info("AgentLoop 启动, 用户输入: {}", userInput);
 
-        // 快速路径：尝试预加载匹配的 Skill
+        // 快速路径：尝试预加载匹配的 Skill（同时设置 ToolContext.activeSkillDefinition）
         tryPreloadSkill(userInput, memory);
 
         for (int i = 0; i < MAX_ITERATIONS; i++) {
@@ -144,8 +140,7 @@ public class AgentLoop {
     }
 
     /**
-     * 带重试的 LLM 调用：失败时最多重试 MAX_LLM_RETRIES 次，
-     * 仅对可恢复异常（超时、5xx）重试，间隔指数退避。
+     * 带重试的 LLM 调用
      */
     private String callLlmWithRetry(ChatModel chatModel, String systemPrompt, String userPrompt) {
         Exception lastException = null;
@@ -153,7 +148,7 @@ public class AgentLoop {
         for (int attempt = 0; attempt <= MAX_LLM_RETRIES; attempt++) {
             try {
                 if (attempt > 0) {
-                    long delay = RETRY_BASE_DELAY_MS * (1L << (attempt - 1)); // 指数退避: 2s, 4s
+                    long delay = RETRY_BASE_DELAY_MS * (1L << (attempt - 1));
                     log.warn("🔁 LLM 调用重试 {}/{}，等待 {}ms", attempt, MAX_LLM_RETRIES, delay);
                     Thread.sleep(delay);
                 }
@@ -163,7 +158,8 @@ public class AgentLoop {
                         .prompt()
                         .system(systemPrompt)
                         .user(userPrompt)
-                        .tools(skillListTool, skillLoadTool, gameGenerationTool, gameFixTool, gameEvaluationTool)
+                        .toolCallbacks(skillsToolCallback)
+                        .tools(gameGenerationTool, gameFixTool, gameEvaluationTool)
                         .call()
                         .content();
 
@@ -181,19 +177,14 @@ public class AgentLoop {
                 (lastException != null ? lastException.getMessage() : "未知错误"), lastException);
     }
 
-    /**
-     * 判断异常是否可重试（超时、5xx 类服务端错误）
-     */
     private boolean isRetryable(Exception e) {
         if (e instanceof InterruptedException) {
             Thread.currentThread().interrupt();
             return false;
         }
         String msg = e.getMessage() != null ? e.getMessage().toLowerCase() : "";
-        // 超时类
         if (e.getCause() instanceof SocketTimeoutException) return true;
         if (msg.contains("timeout") || msg.contains("timed out")) return true;
-        // 5xx 服务端错误
         if (msg.contains("500") || msg.contains("502") || msg.contains("503") || msg.contains("504")) return true;
         if (msg.contains("server error") || msg.contains("service unavailable")) return true;
         if (msg.contains("rate limit") || msg.contains("too many requests") || msg.contains("429")) return true;
@@ -201,7 +192,8 @@ public class AgentLoop {
     }
 
     /**
-     * 快速路径：根据用户输入关键词直接预加载匹配的 Skill，减少 LLM 工具调用轮次
+     * 快速路径：根据用户输入关键词直接预加载匹配的 Skill，
+     * 同时设置 ToolContext.activeSkillDefinition（含 gameType），减少 LLM 工具调用轮次。
      */
     private void tryPreloadSkill(String userInput, WorkingMemory memory) {
         if (userInput == null || userInput.isBlank()) return;
@@ -213,7 +205,10 @@ public class AgentLoop {
                 if (skillOpt.isPresent()) {
                     SkillDefinition skill = skillOpt.get();
                     memory.setPreloadedSkill(skill.getName());
-                    log.info("⚡ 快速路径命中: '{}' → Skill '{}'({})", entry.getKey(), skillName, skill.getDisplayName());
+                    // 同时设置 ToolContext，让 GameEvaluationTool 能获取 gameType
+                    toolContext.setActiveSkillDefinition(skill);
+                    log.info("⚡ 快速路径命中: '{}' → Skill '{}' (gameType={})",
+                            entry.getKey(), skillName, skill.getGameType());
                     return;
                 }
             }
@@ -245,8 +240,8 @@ public class AgentLoop {
 
             ### 首次生成（迭代 1）
             1. **分析需求**：理解用户想要什么类型的游戏、适合什么年龄段、有什么教育目标
-            2. **查找技能模板**：如果 working_memory 中已有 preloaded_skill，可以直接调用 loadSkill 加载，无需先调用 listSkills
-            3. **加载模板**（可选）：如果有匹配的模板，调用 loadSkill 获取参考
+            2. **查找技能模板**：如果 working_memory 中已有 preloaded_skill，可以直接调用 Skill 加载，无需先列出
+            3. **加载模板**（可选）：如果有匹配的模板，调用 Skill 工具获取参考
             4. **生成游戏**：调用 generateGame 生成完整的 HTML5 游戏
             5. **评估游戏**：调用 evaluateGame 对生成的游戏进行质量评估
             6. **根据评估结果决定**：
@@ -261,6 +256,7 @@ public class AgentLoop {
 
             ## 工具使用说明
 
+            - **Skill**：使用 skill 名称调用，获取该类游戏的操作手册和参考模板
             - **evaluateGame**：传入 HTML 代码，返回评估报告（含评分和问题列表）
             - **fixGame**：传入问题描述，自动从工作记忆获取当前 HTML 并修复
             - 评估和修复会自动更新工作记忆中的游戏状态

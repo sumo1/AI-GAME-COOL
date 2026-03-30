@@ -16,14 +16,16 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.2.2</version>
+        <version>4.0.5</version>
         <relativePath/>
     </parent>
 
     <properties>
         <java.version>17</java.version>
-        <spring-ai.version>1.0.0</spring-ai.version>
-        <spring-ai-alibaba.version>1.0.0.2</spring-ai-alibaba.version>
+        <spring-ai.version>2.0.0-M4</spring-ai.version>
+        <!-- spring-ai-alibaba 暂不兼容 Spring AI 2.0 / Spring Boot 4.x，已注释 -->
+        <!-- <spring-ai-alibaba.version>1.0.0.2</spring-ai-alibaba.version> -->
+        <spring-ai-agent-utils.version>0.4.2</spring-ai-agent-utils.version>
     </properties>
 
     <dependencies>
@@ -52,9 +54,19 @@
         </dependency>
         
         <!-- Spring AI Alibaba Dashscope -->
+        <!-- 暂不兼容 Spring AI 2.0 / Spring Boot 4.x，DashScope 可通过 OpenAI 兼容 API 访问 -->
+        <!--
         <dependency>
             <groupId>com.alibaba.cloud.ai</groupId>
             <artifactId>spring-ai-alibaba-starter-dashscope</artifactId>
+        </dependency>
+        -->
+
+        <!-- Spring AI Agent Utils (SkillsTool) -->
+        <dependency>
+            <groupId>org.springaicommunity</groupId>
+            <artifactId>spring-ai-agent-utils</artifactId>
+            <version>${spring-ai-agent-utils.version}</version>
         </dependency>
 
         <!-- Thymeleaf for template -->
@@ -151,14 +163,16 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
-            <!-- Spring AI Alibaba BOM -->
+            <!-- Spring AI Alibaba BOM — 暂不兼容 Spring AI 2.0 -->
+            <!--
             <dependency>
                 <groupId>com.alibaba.cloud.ai</groupId>
                 <artifactId>spring-ai-alibaba-bom</artifactId>
-                <version>${spring-ai-alibaba.version}</version>
+                <version>1.0.0.2</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
+            -->
         </dependencies>
     </dependencyManagement>
 

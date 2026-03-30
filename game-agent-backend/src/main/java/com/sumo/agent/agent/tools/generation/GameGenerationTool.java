@@ -1,7 +1,7 @@
 package com.sumo.agent.agent.tools.generation;
 
 import com.sumo.agent.agent.loop.WorkingMemory;
-import com.sumo.agent.agent.skill.Skill;
+import com.sumo.agent.agent.skill.SkillDefinition;
 import com.sumo.agent.agent.tools.ToolContext;
 import com.sumo.agent.infra.model.ChatModelRegistry;
 import lombok.extern.slf4j.Slf4j;
@@ -41,14 +41,14 @@ public class GameGenerationTool {
         }
 
         try {
-            // 如果有激活的 Skill，用其生成引导增强 system prompt
+            // 如果有激活的 Skill，用 SKILL.md body（操作手册）增强 system prompt
             String systemPrompt = GENERATE_SYSTEM_PROMPT;
-            Skill activeSkill = toolContext.getActiveSkill();
+            SkillDefinition activeSkill = toolContext.getActiveSkillDefinition();
             if (activeSkill != null) {
-                String guidance = activeSkill.getGenerationGuidance();
-                if (guidance != null && !guidance.isBlank()) {
-                    systemPrompt += "\n\n## Skill 专属生成引导\n" + guidance;
-                    log.info("[generateGame] 已注入 Skill 生成引导: {}", activeSkill.getDefinition().getName());
+                String instructions = activeSkill.getInstructions();
+                if (instructions != null && !instructions.isBlank()) {
+                    systemPrompt += "\n\n## Skill 专属生成引导\n" + instructions;
+                    log.info("[generateGame] 已注入 Skill 生成引导: {}", activeSkill.getName());
                 }
             }
 
