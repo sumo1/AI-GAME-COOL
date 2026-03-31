@@ -240,8 +240,8 @@ public class AgentLoop {
 
             ### 首次生成（迭代 1）
             1. **分析需求**：理解用户想要什么类型的游戏、适合什么年龄段、有什么教育目标
-            2. **查找技能模板**：如果 working_memory 中已有 preloaded_skill，可以直接调用 Skill 加载，无需先列出
-            3. **加载模板**（可选）：如果有匹配的模板，调用 Skill 工具获取参考
+            2. **加载技能模板**：如果 working_memory 中有 suggested_skill，直接调用 Skill 工具加载该 skill
+            3. **注意**：必须通过 Skill 工具调用（传入 skill 名称），不能直接用 skill 名作为工具名
             4. **生成游戏**：调用 generateGame 生成完整的 HTML5 游戏
             5. **评估游戏**：调用 evaluateGame 对生成的游戏进行质量评估
             6. **根据评估结果决定**：
