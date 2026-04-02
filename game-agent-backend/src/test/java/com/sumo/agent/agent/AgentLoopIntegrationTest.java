@@ -3,7 +3,7 @@ package com.sumo.agent.agent;
 import com.sumo.agent.agent.evaluation.GameEvaluator;
 import com.sumo.agent.agent.evaluation.ProbeReport;
 import com.sumo.agent.agent.loop.WorkingMemory;
-import com.sumo.agent.agent.skill.*;;
+import com.sumo.agent.agent.skill.*;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -61,7 +61,6 @@ class AgentLoopIntegrationTest {
         void testLongHtmlSummary() {
             WorkingMemory memory = new WorkingMemory();
 
-            // 构造一个超过 8000 字符的 HTML
             StringBuilder htmlBuilder = new StringBuilder();
             htmlBuilder.append("<!DOCTYPE html>\n<html lang=\"zh-CN\">\n<head>\n<title>数学冒险游戏</title>\n");
             htmlBuilder.append("<style>\n.game-container { width: 100%; }\n.score-board { color: red; }\n.option-btn { cursor: pointer; }\n</style>\n");
@@ -73,7 +72,6 @@ class AgentLoopIntegrationTest {
             htmlBuilder.append("function startGame() { console.log('start'); }\n");
             htmlBuilder.append("function checkAnswer(ans) { return ans === correct; }\n");
             htmlBuilder.append("function updateScore(delta) { score += delta; }\n");
-            // 填充内容使其超过 8000 字符
             for (int i = 0; i < 200; i++) {
                 htmlBuilder.append("// 游戏逻辑代码行 ").append(i).append(": var data_").append(i)
                         .append(" = { value: ").append(i).append(", label: '选项").append(i).append("' };\n");
@@ -86,9 +84,7 @@ class AgentLoopIntegrationTest {
             memory.setGameHtml(longHtml);
             String xml = memory.toContextXml();
 
-            // 不应包含完整 HTML
             assertFalse(xml.contains("<game_html>"));
-            // 应包含摘要标签
             assertTrue(xml.contains("<html_summary>"));
             assertTrue(xml.contains("<html_length>"));
         }
@@ -98,7 +94,6 @@ class AgentLoopIntegrationTest {
         void testHtmlSummaryExtraction() {
             WorkingMemory memory = new WorkingMemory();
 
-            // 构造测试 HTML
             StringBuilder htmlBuilder = new StringBuilder();
             htmlBuilder.append("<!DOCTYPE html><html><head><title>测试游戏</title></head><body>");
             htmlBuilder.append("<div id=\"main\" class=\"container game-area\">");
@@ -108,7 +103,6 @@ class AgentLoopIntegrationTest {
             htmlBuilder.append("function initGame() {}");
             htmlBuilder.append("function drawBoard() {}");
             htmlBuilder.append("function handleClick(e) {}");
-            // 填充
             for (int i = 0; i < 300; i++) {
                 htmlBuilder.append("var x").append(i).append(" = ").append(i).append("; ");
             }
@@ -117,18 +111,13 @@ class AgentLoopIntegrationTest {
             memory.setGameHtml(htmlBuilder.toString());
             String summary = memory.getHtmlSummary();
 
-            // 应包含标题
             assertTrue(summary.contains("测试游戏"), "摘要应包含标题");
-            // 应包含 CSS 类名
             assertTrue(summary.contains("container"), "摘要应包含 CSS 类名");
-            // 应包含 JS 函数
             assertTrue(summary.contains("initGame"), "摘要应包含 JS 函数名");
             assertTrue(summary.contains("drawBoard"), "摘要应包含 JS 函数名");
             assertTrue(summary.contains("handleClick"), "摘要应包含 JS 函数名");
-            // 应包含 ID
             assertTrue(summary.contains("main"), "摘要应包含元素 ID");
             assertTrue(summary.contains("gameCanvas"), "摘要应包含元素 ID");
-            // 应包含 canvas 标签信息
             assertTrue(summary.contains("canvas"), "摘要应包含特殊标签信息");
         }
 
@@ -228,18 +217,32 @@ class AgentLoopIntegrationTest {
     class SkillInterfaceTest {
 
         @Test
-        @DisplayName("DefaultSkill 应从 SkillDefinition 派生评估检查")
-        void testDefaultSkillEvaluationChecks() {
+        @DisplayName("DefaultSkill.getGenerationGuidance 返回 SKILL.md instructions")
+        void testGenerationGuidance() {
             SkillDefinition def = new SkillDefinition();
-            def.setName("test_quiz");
-            def.setGameType("quiz");
-            def.setEvaluationCriteria(List.of("答对/答错是否有明确反馈", "是否有计时功能"));
+            def.setInstructions("# 数学冒险\n\n## 生成步骤\n1. 确定数值范围\n2. 调用 generateGame\n\n## 评估重点\n- 必须有计分\n- 必须有反馈");
 
             Skill skill = new DefaultSkill(def);
-            List<EvaluationCheck> checks = skill.getEvaluationChecks();
+            String guidance = skill.getGenerationGuidance();
 
-            // 应包含通用检查（hasScoreDisplay, jsErrorsBelow, outOfBoundsBelow）+ 派生检查 + gameType 检查
-            assertTrue(checks.size() >= 3, "至少应有 3 项通用检查，实际: " + checks.size());
+            assertTrue(guidance.contains("数学冒险"));
+            assertTrue(guidance.contains("生成步骤"));
+            assertTrue(guidance.contains("必须有计分"));
+            assertTrue(guidance.contains("必须有反馈"));
+        }
+
+        @Test
+        @DisplayName("DefaultSkill.getDefinition 返回原始 SkillDefinition")
+        void testGetDefinition() {
+            SkillDefinition def = new SkillDefinition();
+            def.setName("test_skill");
+            def.setGameType("quiz");
+
+            Skill skill = new DefaultSkill(def);
+
+            assertSame(def, skill.getDefinition());
+            assertEquals("test_skill", skill.getDefinition().getName());
+            assertEquals("quiz", skill.getDefinition().getGameType());
         }
 
         @Test
@@ -273,14 +276,11 @@ class AgentLoopIntegrationTest {
         void testJsErrorsBelow() {
             var check = EvaluationCheck.jsErrorsBelow(2);
 
-            // 无 report 时通过
             assertTrue(check.check("", null).isEmpty());
 
-            // 少于阈值时通过
             ProbeReport report = createBaseReport();
             assertTrue(check.check("", report).isEmpty());
 
-            // 超过阈值时失败
             List<ProbeReport.ProbeError> errors = new ArrayList<>();
             for (int i = 0; i < 3; i++) {
                 var err = new ProbeReport.ProbeError();
@@ -289,29 +289,6 @@ class AgentLoopIntegrationTest {
             }
             report.setErrors(errors);
             assertTrue(check.check("", report).isPresent());
-        }
-
-        @Test
-        @DisplayName("DefaultSkill.getGenerationGuidance 返回 SKILL.md instructions")
-        void testGenerationGuidance() {
-            SkillDefinition def = new SkillDefinition();
-            def.setInstructions("# 数学冒险\n\n## 生成步骤\n1. 确定数值范围\n2. 调用 generateGame\n\n## 评估重点\n- 必须有计分\n- 必须有反馈");
-
-            Skill skill = new DefaultSkill(def);
-            String guidance = skill.getGenerationGuidance();
-
-            assertTrue(guidance.contains("数学冒险"));
-            assertTrue(guidance.contains("生成步骤"));
-            assertTrue(guidance.contains("必须有计分"));
-            assertTrue(guidance.contains("必须有反馈"));
-        }
-
-        @Test
-        @DisplayName("DefaultSkill.getFixHints 始终返回空（LLM 读 SKILL.md 常见问题段）")
-        void testFixHintsAlwaysEmpty() {
-            SkillDefinition def = new SkillDefinition();
-            Skill skill = new DefaultSkill(def);
-            assertTrue(skill.getFixHints().isEmpty());
         }
 
         private ProbeReport createBaseReport() {
@@ -335,10 +312,6 @@ class AgentLoopIntegrationTest {
     @DisplayName("GameEvaluator 评分计算测试")
     class GameEvaluatorScoreTest {
 
-        /**
-         * 创建一个 GameEvaluator 实例仅用于 computeScores 测试
-         * （computeScores 是 package-private，不依赖 Playwright）
-         */
         private final GameEvaluator evaluator = new GameEvaluator();
 
         @Test
@@ -509,9 +482,24 @@ class AgentLoopIntegrationTest {
             assertEquals(15, report.getEducationScore());
         }
 
-        /**
-         * 构建基础 ProbeReport（所有列表非空，避免 NPE）
-         */
+        @Test
+        @DisplayName("deriveChecksForGameType 应为 quiz 类型生成正确的检查列表")
+        void testDeriveChecksForQuiz() {
+            List<EvaluationCheck> checks = evaluator.deriveChecksForGameType("quiz");
+
+            // 通用检查 3 个 + quiz 特定 2 个 = 至少 5 个
+            assertTrue(checks.size() >= 5, "quiz 应至少有 5 项检查，实际: " + checks.size());
+        }
+
+        @Test
+        @DisplayName("deriveChecksForGameType 应为 matching 类型生成正确的检查列表")
+        void testDeriveChecksForMatching() {
+            List<EvaluationCheck> checks = evaluator.deriveChecksForGameType("matching");
+
+            // 通用检查 3 个 + matching 特定 2 个 = 至少 5 个
+            assertTrue(checks.size() >= 5, "matching 应至少有 5 项检查，实际: " + checks.size());
+        }
+
         private ProbeReport createBaseReport() {
             ProbeReport report = new ProbeReport();
             report.setPageLoaded(true);

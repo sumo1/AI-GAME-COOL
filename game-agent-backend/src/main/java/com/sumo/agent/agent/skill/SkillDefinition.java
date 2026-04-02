@@ -3,7 +3,7 @@ package com.sumo.agent.agent.skill;
 import java.util.List;
 
 /**
- * Skill 定义 — 对应 YAML 文件中的技能描述
+ * Skill 定义 — 对应 SKILL.md 的 frontmatter 元数据 + body 操作手册
  */
 public class SkillDefinition {
 
@@ -17,7 +17,6 @@ public class SkillDefinition {
     private String template;
     private String promptHint;
     private List<String> evaluationCriteria;
-    private List<FixHint> fixHints;
 
     /** SKILL.md 完整 body（Markdown 操作手册），SkillLoader 解析后设置 */
     private String instructions;
@@ -53,9 +52,6 @@ public class SkillDefinition {
 
     public List<String> getEvaluationCriteria() { return evaluationCriteria; }
     public void setEvaluationCriteria(List<String> evaluationCriteria) { this.evaluationCriteria = evaluationCriteria; }
-
-    public List<FixHint> getFixHints() { return fixHints; }
-    public void setFixHints(List<FixHint> fixHints) { this.fixHints = fixHints; }
 
     public String getInstructions() { return instructions; }
     public void setInstructions(String instructions) { this.instructions = instructions; }

@@ -62,9 +62,9 @@ public class WorkingMemory {
             }
         }
 
-        // 预加载的 Skill 信息
+        // 预加载的 Skill 提示（SkillsTool 的 available_skills 中已有完整列表，这里只做提示）
         if (preloadedSkill != null && !preloadedSkill.isEmpty()) {
-            sb.append("    <preloaded_skill>").append(preloadedSkill).append("</preloaded_skill>\n");
+            sb.append("    <suggested_skill>").append(preloadedSkill).append("</suggested_skill>\n");
         }
 
         sb.append("  </game_state>\n");

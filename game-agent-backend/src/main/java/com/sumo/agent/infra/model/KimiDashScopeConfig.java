@@ -1,9 +1,9 @@
 package com.sumo.agent.infra.model;
 
-import com.alibaba.cloud.ai.dashscope.api.DashScopeApi;
-import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatModel;
-import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatOptions;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.openai.OpenAiChatModel;
+import org.springframework.ai.openai.OpenAiChatOptions;
+import org.springframework.ai.openai.api.OpenAiApi;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -12,11 +12,12 @@ import org.springframework.web.client.RestClient;
 import io.micrometer.observation.ObservationRegistry;
 
 /**
- * 在阿里云百炼平台上使用 Moonshot-Kimi-K2-Instruct 模型。
- * 复用与 DashScope 相同的 API Key 与 Base URL，仅切换模型名。
+ * 在阿里云百炼平台上使用 Moonshot-Kimi-K2-Instruct 模型（OpenAI 兼容模式）。
  */
 @Configuration
 public class KimiDashScopeConfig {
+
+    private static final String DASHSCOPE_OPENAI_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode";
 
     @Value("${spring.ai.dashscope.api-key:}")
     private String apiKey;
@@ -29,20 +30,23 @@ public class KimiDashScopeConfig {
 
     @Bean("kimiK2ChatModel")
     public ChatModel kimiK2ChatModel() {
-        DashScopeApi.Builder apiBuilder = DashScopeApi.builder().apiKey(apiKey);
+        OpenAiApi.Builder apiBuilder = OpenAiApi.builder()
+                .baseUrl(DASHSCOPE_OPENAI_BASE_URL)
+                .apiKey(apiKey);
+
         if (restClientBuilder != null) {
             apiBuilder.restClientBuilder(restClientBuilder);
         }
 
-        DashScopeApi api = apiBuilder.build();
+        OpenAiApi openAiApi = apiBuilder.build();
 
-        DashScopeChatOptions options = DashScopeChatOptions.builder()
-                .withModel("Moonshot-Kimi-K2-Instruct")
-                .withTemperature(0.7)
+        OpenAiChatOptions options = OpenAiChatOptions.builder()
+                .model("Moonshot-Kimi-K2-Instruct")
+                .temperature(0.7)
                 .build();
 
-        DashScopeChatModel.Builder modelBuilder = DashScopeChatModel.builder()
-                .dashScopeApi(api)
+        OpenAiChatModel.Builder modelBuilder = OpenAiChatModel.builder()
+                .openAiApi(openAiApi)
                 .defaultOptions(options);
 
         if (observationRegistry != null) {

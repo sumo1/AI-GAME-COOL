@@ -12,20 +12,16 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Skill 加载器 — 从 classpath:skills/{name}/SKILL.md 加载 Skill。
+ * Skill 加载器 — 从 classpath:skills/{name}/SKILL.md 加载元数据。
  * <p>
- * 遵循 AgentSkills.io 规范 + OpenClaw 实现模式：
- * <ul>
- *   <li>Frontmatter（YAML）：机器可读的元数据，用于发现和过滤</li>
- *   <li>Body（Markdown）：原样传给 LLM，不做结构化解析</li>
- * </ul>
+ * 负责解析 SKILL.md frontmatter 获取 gameType 等元数据。
+ * list/load 功能已交给 spring-ai-agent-utils 的 SkillsTool。
  */
 @Slf4j
 @Component
 public class SkillLoader {
 
     private final Map<String, SkillDefinition> definitions = new ConcurrentHashMap<>();
-    private final Map<String, Skill> skills = new ConcurrentHashMap<>();
 
     @PostConstruct
     public void init() {
@@ -51,7 +47,6 @@ public class SkillLoader {
                     loadTemplate(resolver, def);
 
                     definitions.put(def.getName(), def);
-                    skills.put(def.getName(), new DefaultSkill(def));
 
                     log.info("加载 Skill: {} ({})", def.getName(), def.getDescription() != null
                             ? def.getDescription().substring(0, Math.min(40, def.getDescription().length())) + "..."
@@ -62,7 +57,7 @@ public class SkillLoader {
                 }
             }
 
-            log.info("Skill 加载完成，共 {} 个", skills.size());
+            log.info("Skill 加载完成，共 {} 个", definitions.size());
         } catch (Exception e) {
             log.warn("扫描 skills 目录失败", e);
         }
@@ -120,24 +115,7 @@ public class SkillLoader {
         return Optional.ofNullable(definitions.get(name));
     }
 
-    public Optional<Skill> getSkillInstance(String name) {
-        return Optional.ofNullable(skills.get(name));
-    }
-
     public List<SkillDefinition> listSkills() {
         return List.copyOf(definitions.values());
-    }
-
-    public List<SkillDefinition> listSkills(String filter) {
-        if (filter == null || filter.isBlank()) {
-            return listSkills();
-        }
-        String lowerFilter = filter.toLowerCase();
-        return definitions.values().stream()
-                .filter(s -> s.getName().toLowerCase().contains(lowerFilter)
-                        || (s.getDescription() != null && s.getDescription().toLowerCase().contains(lowerFilter))
-                        || (s.getTags() != null && s.getTags().stream()
-                                .anyMatch(t -> t.toLowerCase().contains(lowerFilter))))
-                .toList();
     }
 }
