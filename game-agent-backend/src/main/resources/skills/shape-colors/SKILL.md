@@ -1,9 +1,10 @@
 ---
-name: shape_colors
+name: shape-colors
 description: 生成形状颜色认知游戏，通过拖拽和点击认识基本形状和颜色。当用户需要形状、颜色、认知类游戏时使用。
-ageGroup: "4-6"
-gameType: recognition
-tags: [形状, 颜色, 认知, 分类]
+metadata:
+  ageGroup: "4-6"
+  gameType: recognition
+  tags: [形状, 颜色, 认知, 分类]
 ---
 
 # 形状颜色大冒险

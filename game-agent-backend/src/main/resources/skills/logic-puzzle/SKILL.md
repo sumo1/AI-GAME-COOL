@@ -1,9 +1,10 @@
 ---
-name: logic_puzzle
+name: logic-puzzle
 description: 生成逻辑推理游戏，包含数列规律、图形排序、条件推理等题型。当用户需要逻辑、推理、思维训练类游戏时使用。
-ageGroup: "8-12"
-gameType: logic
-tags: [逻辑, 推理, 数列, 排序, 思维训练]
+metadata:
+  ageGroup: "8-12"
+  gameType: logic
+  tags: [逻辑, 推理, 数列, 排序, 思维训练]
 ---
 
 # 逻辑推理大师

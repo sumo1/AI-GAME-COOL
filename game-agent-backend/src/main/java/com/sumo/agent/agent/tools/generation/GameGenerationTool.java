@@ -41,14 +41,14 @@ public class GameGenerationTool {
         }
 
         try {
-            // 如果有激活的 Skill，用 SKILL.md body（操作手册）增强 system prompt
+            // 如果有激活的 Skill，用其操作手册增强 system prompt
             String systemPrompt = GENERATE_SYSTEM_PROMPT;
-            SkillDefinition activeSkill = toolContext.getActiveSkillDefinition();
+            SkillDefinition activeSkill = toolContext.getActiveSkill();
             if (activeSkill != null) {
                 String instructions = activeSkill.getInstructions();
                 if (instructions != null && !instructions.isBlank()) {
-                    systemPrompt += "\n\n## Skill 专属生成引导\n" + instructions;
-                    log.info("[generateGame] 已注入 Skill 生成引导: {}", activeSkill.getName());
+                    systemPrompt += "\n\n## Skill 操作手册\n" + instructions;
+                    log.info("[generateGame] 已注入 Skill 操作手册: {}", activeSkill.getName());
                 }
             }
 

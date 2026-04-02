@@ -132,15 +132,12 @@ com.sumo.agent/
 │   │   ├── skill/                     #     SkillListTool / SkillLoadTool
 │   │   ├── generation/                #     GameGenerationTool / GameFixTool
 │   │   └── evaluation/                #     GameEvaluationTool
-│   ├── skill/                        #   Skill 系统
-│   │   ├── Skill.java                #     接口（getGenerationGuidance / getEvaluationChecks）
-│   │   ├── DefaultSkill.java         #     默认实现（gameType 派生代码检查）
-│   │   ├── SkillDefinition.java      #     数据结构（frontmatter + instructions）
-│   │   ├── SkillLoader.java          #     加载器（解析 SKILL.md）
-│   │   ├── EvaluationCheck.java      #     代码级检查（函数式接口）
-│   │   └── FixHint.java              #     修复提示（POJO）
+│   ├── skill/                        #   Skill 系统（对齐 AgentSkills.io 规范）
+│   │   ├── SkillDefinition.java      #     数据结构（name + description + metadata + instructions）
+│   │   └── SkillLoader.java          #     加载器（解析 SKILL.md frontmatter + body）
 │   └── evaluation/                   #   游戏评估
 │       ├── GameEvaluator.java        #     Playwright headless 渲染 + Probe 数据收割
+│       ├── EvaluationCheck.java      #     通用代码级检查（函数式接口）
 │       └── ProbeReport.java          #     评估报告
 │
 └── legacy/                           # V1 遗留代码（@Deprecated）
@@ -156,25 +153,26 @@ com.sumo.agent/
 
 ```
 resources/skills/
-├── math_adventure/
+├── math-adventure/
 │   ├── SKILL.md              # 操作手册（frontmatter + Markdown body）
 │   └── assets/
 │       └── template.html     # HTML 参考模板
-├── memory_master/
-├── english_explorer/
-├── traffic_safety/
-├── shape_colors/
-└── logic_puzzle/
+├── memory-master/
+├── english-explorer/
+├── traffic-safety/
+├── shape-colors/
+└── logic-puzzle/
 ```
 
 **SKILL.md 结构**：
 ```markdown
 ---
-name: math_adventure                    # frontmatter: 机器用（发现、过滤）
+name: math-adventure                    # frontmatter: 机器用（发现、过滤）
 description: 生成 4-8 岁儿童的数学加减法互动游戏...
-ageGroup: "4-8"
-gameType: quiz
-tags: [数学, 加法, 减法]
+metadata:
+  ageGroup: "4-8"
+  gameType: quiz
+  tags: [数学, 加法, 减法]
 ---
 
 # 数学冒险                              # body: LLM 读（理解、执行）
@@ -209,11 +207,11 @@ POST /api/game/v2/generate
   │
   ▼
 AgentLoop.run()
-  ├─ tryPreloadSkill("记忆翻牌" → memory_master)
+  ├─ tryPreloadSkill("记忆翻牌" → memory-master)
   │
   └─ ChatClient.call()  ← 一次调用，Spring AI 内部自动多轮 FC
        │
-       ├─ FC1: loadSkill("memory_master")
+       ├─ FC1: loadSkill("memory-master")
        │        → 激活 activeSkill
        │        → 返回 SKILL.md 操作手册原文 + template.html
        │        → LLM 读完知道：生成步骤、评估重点、常见坑
@@ -254,16 +252,17 @@ GET  /api/game/generate/stream    # SSE 流式生成（V1）
 不需要写 Java 代码。创建一个 SKILL.md 文件即可：
 
 ```bash
-mkdir -p src/main/resources/skills/my_new_game/assets
+mkdir -p src/main/resources/skills/my-new-game/assets
 ```
 
-写 `SKILL.md`：
+写 `SKILL.md`（对齐 [AgentSkills.io 规范](https://agentskills.io/specification)）：
 ```markdown
 ---
-name: my_new_game
+name: my-new-game
 description: 描述这个游戏是什么、什么时候用。
-gameType: quiz
-tags: [关键词1, 关键词2]
+metadata:
+  gameType: quiz
+  tags: [关键词1, 关键词2]
 ---
 
 # 我的新游戏

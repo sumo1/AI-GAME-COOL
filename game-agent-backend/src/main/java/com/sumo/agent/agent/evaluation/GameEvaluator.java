@@ -5,11 +5,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.microsoft.playwright.*;
 import com.microsoft.playwright.options.LoadState;
 import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
-
-import com.sumo.agent.agent.skill.EvaluationCheck;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -49,12 +48,16 @@ public class GameEvaluator {
     }
 
     /**
-     * 评估 HTML 游戏代码（通用评估，无 gameType 特定检查）
+     * 评估 HTML 游戏代码
+     *
+     * @param htmlCode 完整的 HTML 游戏代码
+     * @return ProbeReport 结构化评估报告（含评分）
      */
     public ProbeReport evaluate(String htmlCode) {
         String injectedHtml = injectProbe(htmlCode);
         ProbeReport report;
 
+        // 写入临时文件供 Playwright 加载
         Path tempFile = null;
         try {
             tempFile = Files.createTempFile("game-eval-", ".html");
@@ -70,135 +73,9 @@ public class GameEvaluator {
             }
         }
 
+        // 计算评分
         computeScores(report);
         return report;
-    }
-
-    /**
-     * 评估 HTML 游戏代码（带 gameType 自动派生的代码级检查）
-     *
-     * @param htmlCode 完整的 HTML 游戏代码
-     * @param gameType 游戏类型（如 quiz, matching, simulation 等），可为 null
-     * @return ProbeReport 结构化评估报告（含通用评分 + gameType 派生检查结果）
-     */
-    public ProbeReport evaluate(String htmlCode, String gameType) {
-        // 先执行通用评估
-        ProbeReport report = evaluate(htmlCode);
-
-        // 再执行 gameType 派生的代码级检查
-        if (gameType != null && !gameType.isBlank()) {
-            List<EvaluationCheck> checks = deriveChecksForGameType(gameType);
-            if (!checks.isEmpty()) {
-                runSkillChecks(htmlCode, report, checks);
-            }
-        }
-
-        return report;
-    }
-
-    /**
-     * 评估 HTML 游戏代码（带自定义检查列表）
-     *
-     * @param htmlCode 完整的 HTML 游戏代码
-     * @param skillChecks 可执行检查列表
-     * @return ProbeReport 结构化评估报告（含通用评分 + 自定义检查结果）
-     */
-    public ProbeReport evaluate(String htmlCode, List<EvaluationCheck> skillChecks) {
-        ProbeReport report = evaluate(htmlCode);
-
-        if (skillChecks != null && !skillChecks.isEmpty()) {
-            runSkillChecks(htmlCode, report, skillChecks);
-        }
-
-        return report;
-    }
-
-    /**
-     * 根据 gameType 自动派生 EvaluationCheck 列表。
-     * 这些是代码级检查——LLM 做不到的事（检查 HTML 结构和 Probe 运行时数据）。
-     */
-    public List<EvaluationCheck> deriveChecksForGameType(String gameType) {
-        List<EvaluationCheck> checks = new ArrayList<>();
-
-        // 通用检查：所有游戏都该有
-        checks.add(EvaluationCheck.hasScoreDisplay());
-        checks.add(EvaluationCheck.jsErrorsBelow(2));
-        checks.add(EvaluationCheck.outOfBoundsBelow(3));
-
-        // gameType 特定检查
-        switch (gameType.toLowerCase()) {
-            case "quiz" -> {
-                checks.add(EvaluationCheck.hasFeedback());
-                checks.add(EvaluationCheck.htmlMustContain("addEventListener",
-                        "[quiz] 必须有事件监听器处理用户作答"));
-            }
-            case "matching" -> {
-                checks.add(EvaluationCheck.htmlMustContain("match",
-                        "[matching] 未找到配对逻辑"));
-                checks.add(EvaluationCheck.hasInteraction());
-            }
-            case "simulation" -> {
-                checks.add(EvaluationCheck.htmlMustContain("state",
-                        "[simulation] 未找到状态管理逻辑"));
-                checks.add(EvaluationCheck.hasInteraction());
-            }
-            case "recognition" -> {
-                checks.add(EvaluationCheck.htmlMustContain("addEventListener",
-                        "[recognition] 必须有交互事件处理"));
-                checks.add(EvaluationCheck.hasFeedback());
-            }
-            case "logic" -> {
-                checks.add(EvaluationCheck.hasFeedback());
-                checks.add(EvaluationCheck.htmlMustContain("check",
-                        "[logic] 未找到答案验证逻辑"));
-            }
-            default -> checks.add(EvaluationCheck.hasInteraction());
-        }
-
-        return checks;
-    }
-
-    /**
-     * 执行代码级检查，将发现的问题追加到 report.issues
-     */
-    private void runSkillChecks(String htmlCode, ProbeReport report, List<EvaluationCheck> checks) {
-        List<String> existingIssues = report.getIssues();
-        if (existingIssues == null) {
-            existingIssues = new ArrayList<>();
-        }
-
-        int skillIssueCount = 0;
-        for (EvaluationCheck check : checks) {
-            try {
-                Optional<String> issue = check.check(htmlCode, report);
-                if (issue.isPresent()) {
-                    existingIssues.add(issue.get());
-                    skillIssueCount++;
-                }
-            } catch (Exception e) {
-                log.warn("Skill 检查执行异常: {}", e.getMessage());
-            }
-        }
-
-        report.setIssues(existingIssues);
-
-        // 检查结果影响教育匹配度评分
-        if (skillIssueCount == 0) {
-            report.setEducationScore(20);
-        } else if (skillIssueCount <= 2) {
-            report.setEducationScore(15);
-        } else {
-            report.setEducationScore(10);
-        }
-
-        // 重新计算总分
-        int total = report.getRunnabilityScore() + report.getLayoutScore()
-                + report.getInteractivityScore() + report.getCompletenessScore()
-                + report.getEducationScore();
-        report.setTotalScore(total);
-
-        log.info("Skill 检查完成: {}项检查, {}项问题, 教育匹配度={}分, 新总分={}/100",
-                checks.size(), skillIssueCount, report.getEducationScore(), total);
     }
 
     /**
@@ -210,9 +87,11 @@ public class GameEvaluator {
         if (htmlCode.contains("<head>")) {
             return htmlCode.replace("<head>", "<head>\n" + probeTag);
         } else if (htmlCode.contains("<html")) {
+            // 没有 <head>，在 <html...> 后插入
             int idx = htmlCode.indexOf(">", htmlCode.indexOf("<html"));
             return htmlCode.substring(0, idx + 1) + "\n<head>" + probeTag + "</head>\n" + htmlCode.substring(idx + 1);
         } else {
+            // 兜底：直接加在最前面
             return probeTag + "\n" + htmlCode;
         }
     }
@@ -230,6 +109,7 @@ public class GameEvaluator {
             );
             Page page = context.newPage();
 
+            // 加载页面
             page.navigate("file://" + htmlFile.toAbsolutePath());
             page.waitForLoadState(LoadState.NETWORKIDLE,
                     new Page.WaitForLoadStateOptions().setTimeout(PAGE_LOAD_TIMEOUT_MS));
@@ -237,13 +117,18 @@ public class GameEvaluator {
             boolean pageLoaded = isPageLoaded(page);
             log.info("页面加载状态: {}", pageLoaded ? "成功" : "失败/白屏");
 
+            // 等待页面初始化
             page.waitForTimeout(1000);
+
+            // 模拟操作
             simulateInteractions(page);
 
+            // 收割 Probe 数据
             Object probeData = page.evaluate("() => { window.__GAME_PROBE__.collectFinalState(); return JSON.parse(JSON.stringify(window.__GAME_PROBE__)); }");
 
             browser.close();
 
+            // 反序列化
             String json = objectMapper.writeValueAsString(probeData);
             log.debug("Probe 原始数据: {}", json);
 
@@ -253,6 +138,9 @@ public class GameEvaluator {
         }
     }
 
+    /**
+     * 检查页面是否成功加载（非白屏）
+     */
     private boolean isPageLoaded(Page page) {
         try {
             Object result = page.evaluate("() => { return document.body && document.body.innerHTML.trim().length > 0; }");
@@ -262,13 +150,18 @@ public class GameEvaluator {
         }
     }
 
+    /**
+     * 模拟用户交互：找开始按钮 → 点击 → 模拟 3-5 步操作
+     */
     private void simulateInteractions(Page page) {
+        // Step 1: 尝试找到并点击"开始"按钮
         boolean startClicked = tryClickStart(page);
         if (startClicked) {
             log.info("已点击开始按钮");
             page.waitForTimeout(STEP_INTERVAL_MS);
         }
 
+        // Step 2-5: 模拟点击可见的交互元素
         for (int step = 0; step < MAX_INTERACTION_STEPS; step++) {
             boolean clicked = tryClickInteractiveElement(page);
             if (!clicked) {
@@ -280,7 +173,11 @@ public class GameEvaluator {
         }
     }
 
+    /**
+     * 尝试点击"开始"类按钮
+     */
     private boolean tryClickStart(Page page) {
+        // 中英文常见开始按钮文本
         String[] startTexts = {"开始", "开始游戏", "Start", "Play", "GO", "开始挑战"};
         for (String text : startTexts) {
             try {
@@ -291,6 +188,7 @@ public class GameEvaluator {
                 }
             } catch (Exception ignored) {}
         }
+        // 也尝试通过常见选择器
         String[] selectors = {"#start-btn", "#startBtn", ".start-btn", ".start-button",
                 "button[id*='start']", "button[class*='start']"};
         for (String sel : selectors) {
@@ -305,7 +203,11 @@ public class GameEvaluator {
         return false;
     }
 
+    /**
+     * 尝试点击一个可见的交互元素（按钮、选项等）
+     */
     private boolean tryClickInteractiveElement(Page page) {
+        // 优先点击游戏选项/答案按钮
         String[] selectors = {
                 "button:visible", ".option:visible", ".answer:visible", ".choice:visible",
                 "[data-answer]:visible", ".card:visible", ".cell:visible",
@@ -316,6 +218,7 @@ public class GameEvaluator {
                 Locator elements = page.locator(sel);
                 int count = elements.count();
                 if (count > 0) {
+                    // 选择一个可见且可点击的元素
                     for (int i = 0; i < Math.min(count, 10); i++) {
                         Locator el = elements.nth(i);
                         if (el.isVisible() && el.isEnabled()) {
@@ -383,7 +286,7 @@ public class GameEvaluator {
                     .count();
 
             if (clickEvents == 0) {
-                interactivity = 5;
+                interactivity = 5; // 有事件但没有点击
                 issues.add("[交互] 未检测到点击交互");
             } else if (domChangedClicks == 0) {
                 interactivity = 10;
@@ -420,7 +323,7 @@ public class GameEvaluator {
         }
         report.setCompletenessScore(completeness);
 
-        // 5. 教育匹配度 (20分) — 默认 15 分，gameType 检查可覆盖
+        // 5. 教育匹配度 (20分) — Phase 3 给默认 15 分
         report.setEducationScore(15);
 
         // 总分
@@ -432,6 +335,9 @@ public class GameEvaluator {
                 total, runnability, layout, interactivity, completeness);
     }
 
+    /**
+     * 创建一个失败的报告（浏览器崩溃等极端情况）
+     */
     private ProbeReport createFailedReport(String errorMsg) {
         ProbeReport report = new ProbeReport();
         report.setPageLoaded(false);

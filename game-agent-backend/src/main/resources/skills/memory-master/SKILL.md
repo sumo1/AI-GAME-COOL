@@ -1,9 +1,10 @@
 ---
-name: memory_master
+name: memory-master
 description: 生成卡片配对翻牌记忆游戏，支持多种主题。当用户需要记忆、翻牌、配对类游戏时使用。
-ageGroup: "4-10"
-gameType: matching
-tags: [记忆力, 配对, 翻牌, 专注力]
+metadata:
+  ageGroup: "4-10"
+  gameType: matching
+  tags: [记忆力, 配对, 翻牌, 专注力]
 ---
 
 # 记忆大师

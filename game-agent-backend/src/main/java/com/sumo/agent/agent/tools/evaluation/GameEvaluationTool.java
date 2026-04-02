@@ -16,7 +16,10 @@ import java.util.List;
 import java.util.concurrent.*;
 
 /**
- * 游戏评估工具 — 使用 Playwright headless 浏览器评估游戏质量
+ * 游戏评估工具 — 使用 Playwright headless 浏览器评估游戏质量。
+ * <p>
+ * 不再从 Skill 获取代码级检查（那是 Java 策略模式的遗留）。
+ * 评估标准统一由 GameEvaluator 内置，Skill 的评估重点写在 SKILL.md 中由 LLM 阅读理解。
  */
 @Slf4j
 @Component
@@ -36,16 +39,11 @@ public class GameEvaluationTool {
             @ToolParam(description = "要评估的完整 HTML 游戏代码") String htmlCode) {
         log.info("[evaluateGame] 开始评估游戏 ({} 字符)", htmlCode.length());
 
-        // 超时保护
+        // 超时保护：Playwright 评估最多 30 秒
         ExecutorService executor = Executors.newSingleThreadExecutor();
         try {
-            // 从 ToolContext 获取 activeSkill 的 gameType，传给 GameEvaluator
-            String gameType = toolContext.getActiveGameType();
+            Future<ProbeReport> future = executor.submit(() -> gameEvaluator.evaluate(htmlCode));
 
-            Future<ProbeReport> future = executor.submit(() ->
-                    gameType != null
-                            ? gameEvaluator.evaluate(htmlCode, gameType)
-                            : gameEvaluator.evaluate(htmlCode));
             ProbeReport report;
             try {
                 report = future.get(EVALUATE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
@@ -83,6 +81,9 @@ public class GameEvaluationTool {
         }
     }
 
+    /**
+     * 构建降级评估报告（Playwright 超时时使用）
+     */
     private String buildDegradedEvalReport(String htmlCode) {
         StringBuilder sb = new StringBuilder();
         sb.append("## 游戏评估报告（降级模式 — Playwright 超时）\n\n");
@@ -107,6 +108,7 @@ public class GameEvaluationTool {
             sb.append("- ").append(issue).append("\n");
         }
 
+        // 更新 WorkingMemory
         WorkingMemory memory = toolContext.getWorkingMemory();
         if (memory != null) {
             memory.setEvalScore(score);

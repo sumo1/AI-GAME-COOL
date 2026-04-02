@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
  * 各 Tool Bean 通过 ToolContext 读写：
  * <ul>
  *   <li>WorkingMemory — 游戏 HTML、评分、问题列表</li>
- *   <li>ActiveSkillDefinition — 当前加载的 Skill 元数据（含 gameType）</li>
+ *   <li>ActiveSkill — 当前加载的 SkillDefinition（纯文本数据，非策略对象）</li>
  *   <li>fixCount — 累计修复次数</li>
  * </ul>
  */
@@ -20,15 +20,15 @@ public class ToolContext {
 
     private WorkingMemory workingMemory;
 
-    /** 当前激活的 Skill 元数据（由 SkillsToolCallbackWrapper 或 tryPreloadSkill 设置） */
-    private SkillDefinition activeSkillDefinition;
+    /** 当前激活的 Skill 定义（由 SkillLoadTool 设置） */
+    private SkillDefinition activeSkill;
 
     /** 累计修复次数，第 4 次起全量重写 */
     private int fixCount = 0;
 
     public void init(WorkingMemory memory) {
         this.workingMemory = memory;
-        this.activeSkillDefinition = null;
+        this.activeSkill = null;
         this.fixCount = 0;
     }
 
@@ -36,19 +36,12 @@ public class ToolContext {
         return workingMemory;
     }
 
-    public SkillDefinition getActiveSkillDefinition() {
-        return activeSkillDefinition;
+    public SkillDefinition getActiveSkill() {
+        return activeSkill;
     }
 
-    public void setActiveSkillDefinition(SkillDefinition skillDefinition) {
-        this.activeSkillDefinition = skillDefinition;
-    }
-
-    /**
-     * 获取当前激活 Skill 的 gameType（用于 EvaluationCheck 派生）
-     */
-    public String getActiveGameType() {
-        return activeSkillDefinition != null ? activeSkillDefinition.getGameType() : null;
+    public void setActiveSkill(SkillDefinition skill) {
+        this.activeSkill = skill;
     }
 
     public int incrementAndGetFixCount() {

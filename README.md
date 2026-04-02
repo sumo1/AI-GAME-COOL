@@ -128,7 +128,7 @@ BACKEND_URL=http://localhost:8090 npm run dev
 AgentLoop
   └─ ChatClient.call()  ← 一次调用，Spring AI 内部自动多轮 FC
        │
-       ├─ loadSkill("memory_master")
+       ├─ loadSkill("memory-master")
        │    → LLM 读 SKILL.md 操作手册（生成步骤/评估重点/常见问题）
        │
        ├─ generateGame(design)
@@ -150,26 +150,28 @@ AgentLoop
 
 ```
 resources/skills/
-├── math_adventure/
+├── math-adventure/
 │   ├── SKILL.md              # 操作手册（LLM 读这个理解怎么做）
 │   └── assets/template.html  # HTML 参考模板
-├── memory_master/
-├── english_explorer/
-├── traffic_safety/
-├── shape_colors/
-└── logic_puzzle/
+├── memory-master/
+├── english-explorer/
+├── traffic-safety/
+├── shape-colors/
+└── logic-puzzle/
 ```
 
-SKILL.md 分两层：**frontmatter 给机器用**（发现 + 过滤），**body 给 LLM 读**（理解 + 执行）：
+SKILL.md 对齐 [AgentSkills.io 规范](https://agentskills.io/specification)——frontmatter 只需 `name` + `description`，领域信息放 `metadata`：
 ```markdown
 ---
-name: math_adventure          # 机器用：匹配、路由
-description: 数学加减法游戏...
-gameType: quiz
-tags: [数学, 加法]
+name: math-adventure
+description: 生成 4-8 岁儿童的数学加减法互动游戏。当用户需要数学、算术类游戏时使用。
+metadata:
+  ageGroup: "4-8"
+  gameType: quiz
+  tags: [数学, 加法, 减法]
 ---
-# 数学冒险                    # LLM 读：操作手册
-## 生成步骤 / ## 评估重点 / ## 常见问题
+# 数学冒险                    # body: LLM 读操作手册
+## 何时使用 / ## 生成步骤 / ## 评估重点 / ## 常见问题
 ```
 
 ### 后端包结构
@@ -182,7 +184,7 @@ com.sumo.agent/
 ├── agent/         # 核心域
 │   ├── loop/      #   AgentLoop + WorkingMemory
 │   ├── tools/     #   5 个 Tool Bean（Skill/Generation/Evaluation）
-│   ├── skill/     #   Skill 接口 + SkillLoader（解析 SKILL.md）
+│   ├── skill/     #   SkillDefinition + SkillLoader（解析 SKILL.md）
 │   └── evaluation/#   Playwright GameEvaluator
 └── legacy/        # V1 遗留（@Deprecated）
 ```
@@ -192,16 +194,17 @@ com.sumo.agent/
 不需要写 Java 代码，创建 SKILL.md 文件即可：
 
 ```bash
-mkdir -p game-agent-backend/src/main/resources/skills/my_game/assets
+mkdir -p game-agent-backend/src/main/resources/skills/my-game/assets
 ```
 
-写 `skills/my_game/SKILL.md`：
+写 `skills/my-game/SKILL.md`（[AgentSkills.io 规范](https://agentskills.io/specification)）：
 ```markdown
 ---
-name: my_game
+name: my-game
 description: 什么游戏、什么时候用。
-gameType: quiz
-tags: [关键词]
+metadata:
+  gameType: quiz
+  tags: [关键词]
 ---
 # 我的游戏
 ## 何时使用 / ## 生成步骤 / ## 评估重点 / ## 常见问题

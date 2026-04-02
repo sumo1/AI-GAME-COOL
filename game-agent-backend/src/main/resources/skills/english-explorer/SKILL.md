@@ -1,9 +1,10 @@
 ---
-name: english_explorer
+name: english-explorer
 description: 生成英语词汇学习游戏，包含看图选词、听音选图、单词拼写模式。当用户需要英语、单词、拼写类游戏时使用。
-ageGroup: "5-9"
-gameType: quiz
-tags: [英语, 词汇, 拼写, 听力]
+metadata:
+  ageGroup: "5-9"
+  gameType: quiz
+  tags: [英语, 词汇, 拼写, 听力]
 ---
 
 # 英语探险家

@@ -1,9 +1,10 @@
 ---
-name: math_adventure
+name: math-adventure
 description: 生成 4-8 岁儿童的数学加减法互动游戏。当用户需要数学、算术、加法、减法、计算类游戏时使用。
-ageGroup: "4-8"
-gameType: quiz
-tags: [数学, 加法, 减法, 计算]
+metadata:
+  ageGroup: "4-8"
+  gameType: quiz
+  tags: [数学, 加法, 减法, 计算]
 ---
 
 # 数学冒险

@@ -12,10 +12,16 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Skill 加载器 — 从 classpath:skills/{name}/SKILL.md 加载元数据。
+ * Skill 加载器 — 从 classpath:skills/{name}/SKILL.md 加载 Skill 定义。
  * <p>
- * 负责解析 SKILL.md frontmatter 获取 gameType 等元数据。
- * list/load 功能已交给 spring-ai-agent-utils 的 SkillsTool。
+ * 对齐 AgentSkills.io 规范：
+ * <ul>
+ *   <li>Frontmatter（YAML）：只读 name + description + metadata</li>
+ *   <li>Body（Markdown）：原样保留，LLM 自己读</li>
+ *   <li>不再创建 "Skill 策略实例"——skill 就是文本，不是 Java 对象</li>
+ * </ul>
+ *
+ * @see <a href="https://agentskills.io/specification">AgentSkills.io Specification</a>
  */
 @Slf4j
 @Component
@@ -36,8 +42,8 @@ public class SkillLoader {
             for (Resource res : skillMdFiles) {
                 try {
                     String content = res.getContentAsString(StandardCharsets.UTF_8);
-                    SkillDefinition def = parseSkillMd(content);
 
+                    SkillDefinition def = parseSkillMd(content);
                     if (def == null || def.getName() == null) {
                         log.warn("SKILL.md 解析失败（无 name）: {}", res.getURL());
                         continue;
@@ -47,10 +53,8 @@ public class SkillLoader {
                     loadTemplate(resolver, def);
 
                     definitions.put(def.getName(), def);
-
-                    log.info("加载 Skill: {} ({})", def.getName(), def.getDescription() != null
-                            ? def.getDescription().substring(0, Math.min(40, def.getDescription().length())) + "..."
-                            : "?");
+                    log.info("加载 Skill: {} ({})", def.getName(),
+                            truncate(def.getDescription(), 50));
 
                 } catch (Exception e) {
                     log.warn("加载 SKILL.md 失败: {}", res.getFilename(), e);
@@ -64,7 +68,9 @@ public class SkillLoader {
     }
 
     /**
-     * 解析 SKILL.md：frontmatter → 元数据（机器用），body → 原样保留（LLM 读）
+     * 解析 SKILL.md — 严格按 AgentSkills.io 规范：
+     * frontmatter 只取 name + description + metadata，其余全部忽略。
+     * body 原样保留给 LLM 读。
      */
     @SuppressWarnings("unchecked")
     private SkillDefinition parseSkillMd(String content) {
@@ -80,18 +86,30 @@ public class SkillLoader {
         if (fm == null) return null;
 
         SkillDefinition def = new SkillDefinition();
+
+        // Required fields
         def.setName((String) fm.get("name"));
         def.setDescription((String) fm.get("description"));
-        def.setDisplayName((String) fm.getOrDefault("displayName", def.getName()));
-        def.setAgeGroup(String.valueOf(fm.getOrDefault("ageGroup", "")));
-        def.setGameType((String) fm.get("gameType"));
 
-        Object tagsObj = fm.get("tags");
-        if (tagsObj instanceof List) {
-            def.setTags(((List<Object>) tagsObj).stream().map(String::valueOf).toList());
+        // Optional: metadata map（规范允许任意 key-value）
+        Object metaObj = fm.get("metadata");
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        if (metaObj instanceof Map) {
+            metadata.putAll((Map<String, Object>) metaObj);
         }
 
-        // Body 原样保留，不做结构化解析——LLM 自己读
+        // 非规范字段（ageGroup、gameType、tags 等）也收到 metadata 里，保持向后兼容
+        for (String key : List.of("ageGroup", "gameType", "tags", "displayName")) {
+            Object val = fm.get(key);
+            if (val != null) {
+                metadata.put(key, val);
+            }
+        }
+        if (!metadata.isEmpty()) {
+            def.setMetadata(metadata);
+        }
+
+        // Body 原样保留
         def.setInstructions(body);
 
         return def;
@@ -117,5 +135,35 @@ public class SkillLoader {
 
     public List<SkillDefinition> listSkills() {
         return List.copyOf(definitions.values());
+    }
+
+    public List<SkillDefinition> listSkills(String filter) {
+        if (filter == null || filter.isBlank()) {
+            return listSkills();
+        }
+        String lowerFilter = filter.toLowerCase();
+        return definitions.values().stream()
+                .filter(s -> matches(s, lowerFilter))
+                .toList();
+    }
+
+    private boolean matches(SkillDefinition s, String lowerFilter) {
+        if (s.getName().toLowerCase().contains(lowerFilter)) return true;
+        if (s.getDescription() != null && s.getDescription().toLowerCase().contains(lowerFilter)) return true;
+
+        // 也匹配 metadata 中的 tags
+        if (s.getMetadata() != null) {
+            Object tags = s.getMetadata().get("tags");
+            if (tags instanceof List<?> tagList) {
+                return tagList.stream()
+                        .anyMatch(t -> String.valueOf(t).toLowerCase().contains(lowerFilter));
+            }
+        }
+        return false;
+    }
+
+    private static String truncate(String s, int maxLen) {
+        if (s == null) return "?";
+        return s.length() <= maxLen ? s : s.substring(0, maxLen) + "...";
     }
 }

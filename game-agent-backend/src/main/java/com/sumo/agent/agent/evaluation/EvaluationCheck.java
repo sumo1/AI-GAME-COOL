@@ -1,4 +1,4 @@
-package com.sumo.agent.agent.skill;
+package com.sumo.agent.agent.evaluation;
 
 import com.sumo.agent.agent.evaluation.ProbeReport;
 

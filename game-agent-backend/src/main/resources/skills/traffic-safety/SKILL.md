@@ -1,9 +1,10 @@
 ---
-name: traffic_safety
+name: traffic-safety
 description: 生成交通安全教育游戏，学习红绿灯规则和斑马线过马路。当用户需要交通安全、红绿灯、安全教育类游戏时使用。
-ageGroup: "5-9"
-gameType: simulation
-tags: [交通安全, 红绿灯, 安全教育, 规则学习]
+metadata:
+  ageGroup: "5-9"
+  gameType: simulation
+  tags: [交通安全, 红绿灯, 安全教育, 规则学习]
 ---
 
 # 交通安全小卫士
