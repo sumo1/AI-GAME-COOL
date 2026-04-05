@@ -7,8 +7,7 @@ import com.sumo.agent.agent.tools.ToolContext;
 import com.sumo.agent.agent.tools.skill.SkillListTool;
 import com.sumo.agent.agent.tools.skill.SkillLoadTool;
 
-import com.sumo.agent.agent.tools.generation.GameGenerationTool;
-import com.sumo.agent.agent.tools.generation.GameFixTool;
+import com.sumo.agent.agent.tools.generation.GameSaveTool;
 import com.sumo.agent.agent.tools.evaluation.GameEvaluationTool;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -69,10 +68,7 @@ public class AgentLoop {
     private SkillLoadTool skillLoadTool;
 
     @Autowired
-    private GameGenerationTool gameGenerationTool;
-
-    @Autowired
-    private GameFixTool gameFixTool;
+    private GameSaveTool gameSaveTool;
 
     @Autowired
     private GameEvaluationTool gameEvaluationTool;
@@ -97,51 +93,57 @@ public class AgentLoop {
         toolContext.init(memory);
         log.info("AgentLoop 启动, 用户输入: {}", userInput);
 
-        // 快速路径：尝试预加载匹配的 Skill
-        tryPreloadSkill(userInput, memory);
+        try {
+            // 快速路径：尝试预加载匹配的 Skill
+            tryPreloadSkill(userInput, memory);
 
-        for (int i = 0; i < MAX_ITERATIONS; i++) {
-            memory.setIteration(i + 1);
-            log.info("🔄 迭代 {}/{}", i + 1, MAX_ITERATIONS);
+            for (int i = 0; i < MAX_ITERATIONS; i++) {
+                memory.setIteration(i + 1);
+                log.info("🔄 迭代 {}/{}", i + 1, MAX_ITERATIONS);
 
-            try {
-                String systemPrompt = buildSystemPrompt(memory);
-                String response = callLlmWithRetry(chatModel, systemPrompt, buildUserPrompt(userInput, memory));
+                try {
+                    String systemPrompt = buildSystemPrompt(memory);
+                    String response = callLlmWithRetry(chatModel, systemPrompt, buildUserPrompt(userInput, memory));
 
-                log.info("🤖 LLM 响应完成 ({} 字符)", response != null ? response.length() : 0);
+                    log.info("🤖 LLM 响应完成 ({} 字符)", response != null ? response.length() : 0);
 
-                // 质量门禁检查
-                if (memory.getEvalScore() == 0 || memory.getEvalScore() >= QUALITY_GATE_SCORE) {
-                    log.info("✅ AgentLoop 完成, 迭代 {} 次", i + 1);
-                    return AgentLoopResult.success(
-                            memory.getGameHtml(),
-                            response,
-                            i + 1,
-                            memory.getEvalScore()
-                    );
+                    // 质量门禁检查
+                    if (memory.getEvalScore() == 0 || memory.getEvalScore() >= QUALITY_GATE_SCORE) {
+                        log.info("✅ AgentLoop 完成, 迭代 {} 次", i + 1);
+                        return AgentLoopResult.success(
+                                memory.getGameHtml(),
+                                response,
+                                i + 1,
+                                memory.getEvalScore()
+                        );
+                    }
+
+                    log.info("⚠️ 评分 {}/100 未达标，继续迭代", memory.getEvalScore());
+
+                } catch (Exception e) {
+                    log.error("❌ 迭代 {} 出错: {}", i + 1, e.getMessage(), e);
+                    if (memory.getGameHtml() != null) {
+                        return AgentLoopResult.success(
+                                memory.getGameHtml(),
+                                "生成过程遇到问题，返回当前版本: " + e.getMessage(),
+                                i + 1, memory.getEvalScore()
+                        );
+                    }
+                    return AgentLoopResult.failure("AgentLoop 执行失败: " + e.getMessage(), i + 1);
                 }
-
-                log.info("⚠️ 评分 {}/100 未达标，继续迭代", memory.getEvalScore());
-
-            } catch (Exception e) {
-                log.error("❌ 迭代 {} 出错: {}", i + 1, e.getMessage(), e);
-                if (memory.getGameHtml() != null) {
-                    return AgentLoopResult.success(
-                            memory.getGameHtml(),
-                            "生成过程遇到问题，返回当前版本: " + e.getMessage(),
-                            i + 1, memory.getEvalScore()
-                    );
-                }
-                return AgentLoopResult.failure("AgentLoop 执行失败: " + e.getMessage(), i + 1);
             }
-        }
 
-        log.warn("⚠️ 达到最大迭代次数 {}", MAX_ITERATIONS);
-        if (memory.getGameHtml() != null) {
-            return AgentLoopResult.success(memory.getGameHtml(), "达到最大迭代次数，返回当前最佳版本",
-                    MAX_ITERATIONS, memory.getEvalScore());
+            log.warn("⚠️ 达到最大迭代次数 {}", MAX_ITERATIONS);
+            if (memory.getGameHtml() != null) {
+                return AgentLoopResult.success(memory.getGameHtml(), "达到最大迭代次数，返回当前最佳版本",
+                        MAX_ITERATIONS, memory.getEvalScore());
+            }
+            return AgentLoopResult.failure("达到最大迭代次数仍未生成游戏", MAX_ITERATIONS);
+
+        } finally {
+            // 清理 ThreadLocal，防止线程池复用时状态泄漏
+            toolContext.clear();
         }
-        return AgentLoopResult.failure("达到最大迭代次数仍未生成游戏", MAX_ITERATIONS);
     }
 
     /**
@@ -164,7 +166,7 @@ public class AgentLoop {
                         .prompt()
                         .system(systemPrompt)
                         .user(userPrompt)
-                        .tools(skillListTool, skillLoadTool, gameGenerationTool, gameFixTool, gameEvaluationTool)
+                        .tools(skillListTool, skillLoadTool, gameSaveTool, gameEvaluationTool)
                         .call()
                         .content();
 
@@ -222,68 +224,28 @@ public class AgentLoop {
     }
 
     private String buildSystemPrompt(WorkingMemory memory) {
-        return SEMANTIC_PROMPT + "\n\n" + memory.toContextXml();
+        return AgentPrompts.SYSTEM_PROMPT + "\n\n" + memory.toContextXml();
     }
 
     private String buildUserPrompt(String userInput, WorkingMemory memory) {
         if (memory.getIteration() == 1) {
             return userInput;
         }
+
+        // 修复迭代：把 openIssues + 当前 HTML 摘要传给编排器 LLM
         StringBuilder sb = new StringBuilder();
-        sb.append("请根据以下问题修复当前游戏：\n");
+        sb.append("请根据以下问题修复当前游戏（fix_count=")
+                .append(toolContext.getFixCount()).append("）：\n");
         for (String issue : memory.getOpenIssues()) {
             sb.append("- ").append(issue).append("\n");
         }
-        sb.append("\n原始需求：").append(userInput);
+
+        // 注入当前 HTML，让编排器有修改基础
+        if (memory.getGameHtml() != null) {
+            sb.append("\n当前游戏 HTML：\n").append(memory.getGameHtml());
+        }
+
+        sb.append("\n\n原始需求：").append(userInput);
         return sb.toString();
     }
-
-    private static final String SEMANTIC_PROMPT = """
-            你是一个儿童教育游戏设计专家（Game Agent）。你的工作是根据用户的需求描述，
-            设计并生成完整的 HTML5 教育小游戏。你追求的不是"能跑"，而是"好玩、有教育意义、没有 bug"。
-
-            ## 你的工作流程
-
-            ### 首次生成（迭代 1）
-            1. **分析需求**：理解用户想要什么类型的游戏、适合什么年龄段、有什么教育目标
-            2. **查找技能模板**：如果 working_memory 中已有 preloaded_skill，可以直接调用 loadSkill 加载，无需先调用 listSkills
-            3. **加载模板**（可选）：如果有匹配的模板，调用 loadSkill 获取参考
-            4. **生成游戏**：调用 generateGame 生成完整的 HTML5 游戏
-            5. **评估游戏**：调用 evaluateGame 对生成的游戏进行质量评估
-            6. **根据评估结果决定**：
-               - 评分 ≥ 80：质量达标，向用户总结反馈
-               - 评分 < 80：需要修复，调用 fixGame 修复问题，然后再次评估
-
-            ### 修复迭代（迭代 2+）
-            1. 查看 working_memory 中的 open_issues
-            2. 调用 fixGame 修复问题
-            3. 调用 evaluateGame 重新评估
-            4. 重复直到评分达标或达到最大迭代次数
-
-            ## 工具使用说明
-
-            - **evaluateGame**：传入 HTML 代码，返回评估报告（含评分和问题列表）
-            - **fixGame**：传入问题描述，自动从工作记忆获取当前 HTML 并修复
-            - 评估和修复会自动更新工作记忆中的游戏状态
-            - **注意**：如果 working_memory 中包含 html_summary，完整 HTML 可通过工具内部获取，不需要在对话中传递
-
-            ## 游戏质量标准
-
-            - 游戏必须是单个完整的 HTML 文件（内联 CSS/JS，不依赖外部资源）
-            - 必须有明确的开始和结束
-            - 必须有计分或进度反馈
-            - 操作必须简单直觉（点击/拖拽）
-            - 视觉元素不能超出可见区域
-            - 失败时给鼓励而非惩罚
-            - 响应式布局，适配不同屏幕
-
-            ## 输出要求
-
-            在调用工具完成游戏生成后，请用简短的中文向用户说明：
-            - 生成了什么游戏
-            - 适合什么年龄段
-            - 核心玩法是什么
-            - 有哪些教育目标
-            - 评估得分和质量情况
-            """;
 }

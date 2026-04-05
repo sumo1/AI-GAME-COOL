@@ -9,6 +9,7 @@
 # IDE
 .idea/
 .vscode/
+*.iml
 
 # Node
 game-agent-frontend/node_modules/
@@ -16,6 +17,9 @@ game-agent-frontend/dist/
 
 # Java / Maven
 game-agent-backend/target/
+
+# 本地游戏存档（运行时生成）
+game-agent-backend/saved-games/
 
 # Coverage / Reports
 coverage/

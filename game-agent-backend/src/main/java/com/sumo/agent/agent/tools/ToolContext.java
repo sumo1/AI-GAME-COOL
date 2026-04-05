@@ -5,50 +5,62 @@ import com.sumo.agent.agent.skill.SkillDefinition;
 import org.springframework.stereotype.Component;
 
 /**
- * 工具上下文 — 拆分后的多个 Tool Bean 共享状态的桥梁。
+ * 工具上下文 — 拆分后的多个 Tool Bean 共享 per-loop 状态的桥梁。
  * <p>
- * AgentLoop 每次 run() 时调用 init() 重置状态。
- * 各 Tool Bean 通过 ToolContext 读写：
- * <ul>
- *   <li>WorkingMemory — 游戏 HTML、评分、问题列表</li>
- *   <li>ActiveSkill — 当前加载的 SkillDefinition（纯文本数据，非策略对象）</li>
- *   <li>fixCount — 累计修复次数</li>
- * </ul>
+ * 内部使用 ThreadLocal 隔离并发请求：每个线程（= 每个 HTTP 请求 = 每次 AgentLoop.run()）
+ * 持有独立的状态副本，Singleton Bean 之间不会互相污染。
+ * <p>
+ * AgentLoop 每次 run() 开始时调用 {@link #init(WorkingMemory)} 初始化，
+ * 结束时调用 {@link #clear()} 清理，防止 ThreadLocal 泄漏。
  */
 @Component
 public class ToolContext {
 
-    private WorkingMemory workingMemory;
+    /**
+     * per-loop 的可变状态，ThreadLocal 隔离。
+     */
+    private static final class State {
+        WorkingMemory workingMemory;
+        SkillDefinition activeSkill;
+        int fixCount;
+    }
 
-    /** 当前激活的 Skill 定义（由 SkillLoadTool 设置） */
-    private SkillDefinition activeSkill;
+    private final ThreadLocal<State> state = ThreadLocal.withInitial(State::new);
 
-    /** 累计修复次数，第 4 次起全量重写 */
-    private int fixCount = 0;
-
+    /**
+     * 初始化当前线程的上下文（AgentLoop.run() 入口处调用）
+     */
     public void init(WorkingMemory memory) {
-        this.workingMemory = memory;
-        this.activeSkill = null;
-        this.fixCount = 0;
+        State s = state.get();
+        s.workingMemory = memory;
+        s.activeSkill = null;
+        s.fixCount = 0;
+    }
+
+    /**
+     * 清理当前线程的上下文（AgentLoop.run() 结束时调用，防止线程池场景下 ThreadLocal 泄漏）
+     */
+    public void clear() {
+        state.remove();
     }
 
     public WorkingMemory getWorkingMemory() {
-        return workingMemory;
+        return state.get().workingMemory;
     }
 
     public SkillDefinition getActiveSkill() {
-        return activeSkill;
+        return state.get().activeSkill;
     }
 
     public void setActiveSkill(SkillDefinition skill) {
-        this.activeSkill = skill;
+        state.get().activeSkill = skill;
     }
 
     public int incrementAndGetFixCount() {
-        return ++fixCount;
+        return ++state.get().fixCount;
     }
 
     public int getFixCount() {
-        return fixCount;
+        return state.get().fixCount;
     }
 }

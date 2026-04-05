@@ -20,6 +20,7 @@ public class WorkingMemory {
     private int evalScore = 0;
     private int issueCount = 0;
     private int iteration = 0;
+    private int fixCount = 0;
     private String gameHtml;
     private String gameTitle;
     private String preloadedSkill;
@@ -47,6 +48,7 @@ public class WorkingMemory {
             sb.append("    </open_issues>\n");
         }
         sb.append("    <iteration>").append(iteration).append(" of 5</iteration>\n");
+        sb.append("    <fix_count>").append(fixCount).append("</fix_count>\n");
 
         // HTML 摘要：超过阈值时只输出结构摘要
         if (gameHtml != null && !gameHtml.isEmpty()) {
@@ -164,6 +166,9 @@ public class WorkingMemory {
 
     public int getIteration() { return iteration; }
     public void setIteration(int iteration) { this.iteration = iteration; }
+
+    public int getFixCount() { return fixCount; }
+    public void setFixCount(int fixCount) { this.fixCount = fixCount; }
 
     public String getGameHtml() { return gameHtml; }
     public void setGameHtml(String gameHtml) { this.gameHtml = gameHtml; }
