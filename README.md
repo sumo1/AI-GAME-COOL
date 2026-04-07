@@ -115,7 +115,7 @@ BACKEND_URL=http://localhost:8090 npm run dev
 | 维度 | V1（旧） | V2（现） |
 |---|---|---|
 | **任务决策** | Java 规则引擎匹配 GameType | LLM 通过 Function Calling 自主决策 |
-| **游戏生成** | 硬编码子 Agent，单次调用 | AgentLoop 多轮迭代：生成 → 评估 → 修复 |
+| **游戏生成** | 硬编码子 Agent，单次调用 | 编排器 LLM 直接生成 HTML → saveGame 存储 → 评估 → 修复 |
 | **质量保障** | 无（生成即交付） | Playwright headless + 代码检查 + 自动修复 |
 | **扩展方式** | 写一个新 Java 类 | 写一个 SKILL.md 文件 |
 
@@ -131,18 +131,20 @@ AgentLoop
        ├─ loadSkill("memory-master")
        │    → LLM 读 SKILL.md 操作手册（生成步骤/评估重点/常见问题）
        │
-       ├─ generateGame(design)
-       │    → 带着 Skill 知识生成 HTML
+       ├─ LLM 直接编写完整 HTML 游戏代码
+       │    → saveGame(html) → 清洗 + 存入 WorkingMemory
        │
        ├─ evaluateGame(html)
        │    → Playwright 渲染 + Probe 注入 + 五维评分
        │    → 评分 < 80 → 继续
        │
-       ├─ fixGame(issues)
-       │    → LLM 已读过 SKILL.md "常见问题"段，带领域知识修复
+       ├─ LLM 直接修改 HTML 修复问题
+       │    → saveGame(fixedHtml) → 清洗 + 存入 WorkingMemory
        │
        └─ evaluateGame(html) → 评分 ≥ 80 → 交付
 ```
+
+**单层 LLM 架构**：编排器 LLM 亲自生成/修复 HTML，Tool 只做存储和评估，不再嵌套调用 LLM。
 
 ### Skill 系统（[AgentSkills.io](https://agentskills.io) 规范）
 
@@ -182,8 +184,8 @@ com.sumo.agent/
 ├── infra/         # 基础设施（模型配置/存储/Jackson）
 ├── knowledge/     # RAG 知识层
 ├── agent/         # 核心域
-│   ├── loop/      #   AgentLoop + WorkingMemory
-│   ├── tools/     #   5 个 Tool Bean（Skill/Generation/Evaluation）
+│   ├── loop/      #   AgentLoop + WorkingMemory + AgentPrompts
+│   ├── tools/     #   4 个 Tool Bean（SkillList/SkillLoad/GameSave/GameEvaluation）
 │   ├── skill/     #   SkillDefinition + SkillLoader（解析 SKILL.md）
 │   └── evaluation/#   Playwright GameEvaluator
 └── legacy/        # V1 遗留（@Deprecated）
@@ -259,7 +261,7 @@ GET /api/game/agents
 
 ## 路线图
 
-- ~~可玩性自动评分器 + 策略修正回路~~ ✅ 已实现（Playwright + ProbeReport + fixGame）
+- ~~可玩性自动评分器 + 策略修正回路~~ ✅ 已实现（Playwright + ProbeReport + 编排器 LLM 直接修复）
 - ~~Skill 系统~~ ✅ 已实现（SKILL.md + AgentSkills.io 规范）
 - 更多学科 Skill（语文/科学/艺术）
 - 家长端报告/进度追踪/分级推荐
