@@ -28,6 +28,15 @@ import java.util.UUID;
 @RequestMapping("/api/game")
 @CrossOrigin(origins = "*")
 public class GameChatController {
+
+    private static final String DEFAULT_MODEL_KEY = "dashscope";
+
+    private static final Map<String, String> MODEL_DISPLAY_NAMES = Map.of(
+            DEFAULT_MODEL_KEY, "通义千问（DashScope）",
+            "kimi-k2", "Moonshot-Kimi-K2-Instruct（百炼）",
+            "qwen3-coder-plus", "Qwen3 Coder Plus（百炼）",
+            "deepseek", "DeepSeek（百炼）"
+    );
     
     @Autowired
     private GameGeneratorAgent gameGeneratorAgent;
@@ -115,15 +124,7 @@ public class GameChatController {
         }
         final String finalSessionId = sessionId;
 
-        // 从 options 中提取 model key
-        String modelKey = null;
-        if (request.getOptions() != null) {
-            Object m = request.getOptions().get("model");
-            if (m instanceof String s) {
-                modelKey = s;
-            }
-        }
-        final String finalModelKey = modelKey;
+        final String finalModelKey = extractModelKey(request);
 
         return Mono.fromCallable(() -> {
             AgentLoopResult result = agentLoop.run(request.getUserInput(), finalModelKey);
@@ -133,22 +134,19 @@ public class GameChatController {
             response.setSuccess(result.success());
 
             if (result.success()) {
+                Map<String, Object> gameMeta = buildV2GameMeta(request.getUserInput(), result);
                 Map<String, Object> gameData = new HashMap<>();
                 gameData.put("html", result.gameHtml());
                 gameData.put("type", "agent_loop");
                 gameData.put("generatedByLLM", true);
-                gameData.put("gameData", Map.of(
-                        "title", "AI 生成的游戏",
-                        "description", request.getUserInput(),
-                        "generated", true,
-                        "iterations", result.iterations(),
-                        "evalScore", result.evalScore()
-                ));
+                gameData.put("gameData", gameMeta);
 
                 response.setGameData(gameData);
+                response.setConfig(buildV2Config(gameMeta));
                 response.setAgentName("AgentLoop v2");
                 response.setAgentSource("llm");
                 response.setGeneratedByLLM(true);
+                response.setModelName(resolveModelName(finalModelKey));
                 response.setMessage(result.llmMessage() != null
                         ? result.llmMessage()
                         : "游戏生成成功！(迭代 " + result.iterations() + " 次)");
@@ -159,6 +157,44 @@ public class GameChatController {
 
             return response;
         });
+    }
+
+    private String extractModelKey(GameRequest request) {
+        if (request.getOptions() == null) {
+            return null;
+        }
+
+        Object model = request.getOptions().get("model");
+        if (model instanceof String modelKey && !modelKey.isBlank()) {
+            return modelKey;
+        }
+
+        return null;
+    }
+
+    private Map<String, Object> buildV2GameMeta(String userInput, AgentLoopResult result) {
+        Map<String, Object> gameMeta = new HashMap<>();
+        gameMeta.put("title", "AI 生成的游戏");
+        gameMeta.put("description", userInput);
+        gameMeta.put("type", "AI 生成");
+        gameMeta.put("generated", true);
+        gameMeta.put("iterations", result.iterations());
+        gameMeta.put("evalScore", result.evalScore());
+        return gameMeta;
+    }
+
+    private Map<String, Object> buildV2Config(Map<String, Object> gameMeta) {
+        Map<String, Object> config = new HashMap<>();
+        config.put("gameType", gameMeta.get("type"));
+        return config;
+    }
+
+    private String resolveModelName(String modelKey) {
+        if (modelKey == null || modelKey.isBlank()) {
+            return MODEL_DISPLAY_NAMES.get(DEFAULT_MODEL_KEY);
+        }
+
+        return MODEL_DISPLAY_NAMES.getOrDefault(modelKey, MODEL_DISPLAY_NAMES.get(DEFAULT_MODEL_KEY));
     }
 
     /**

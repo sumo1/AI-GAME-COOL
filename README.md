@@ -8,7 +8,7 @@
 
 # 🎮 儿童游戏生成 Agent 框架
 
-用自然语言，一键生成可玩的儿童教育游戏。Java + React，插件化 Agent 架构，支持阿里云百炼（通义千问/Kimi/DeepSeek/Qwen3），可选 RAG，内置离线游戏模板。
+用自然语言，一键生成可玩的儿童教育游戏。Java + React，V2 默认走 AgentLoop + Skill 架构，支持阿里云百炼（通义千问/Kimi/DeepSeek/Qwen3），可选 RAG，保留 V1 离线模板兼容入口。
 
 自带游戏
 ![img.png](img.png)
@@ -41,8 +41,8 @@
 
 ## 特性一览
 
-- 🤖 智能对话生成：大模型直出完整 HTML（内联 CSS/JS）。
-- 🧩 内置系统游戏：离线可用（数学/记忆等）。
+- 🤖 智能对话生成：AgentLoop 生成完整 HTML（内联 CSS/JS），并通过评估工具自动修复。
+- 🧩 兼容内置系统游戏：V1 路由仍可访问数学/记忆等离线模板。
 - 🔌 插件化 Agent：注册即用、低耦合。
 - 🛰️ 多模型路由（百炼）：
     - dashscope 默认（通义千问）
@@ -50,14 +50,14 @@
     - qwen3-coder-plus（Qwen3 Coder Plus）
     - deepseek（deepseek-v3.1）
 - 🧠 RAG 可选：Elasticsearch/内存，两行命令起停。
-- 🔭 可观测：响应标注“系统内置/大模型 + 模型名”，日志输出提示词（DEBUG）。
+- 🔭 可观测：响应标注来源、模型名、迭代次数与评估分，日志输出提示词（DEBUG）。
 
 ## 为什么值得 Star
 
 - 说人话就能做游戏：一句自然语言 → 可运行 HTML5 游戏。
-- 两条腿走路：内置系统游戏 + 大模型实时生成，离线/在线都能玩。
+- 默认主线清晰：前端走 V2 AgentLoop，多模型生成、评估、修复在一条链路里完成。
 - 真·可观测：响应卡片显示“来源与模型”，Debug 日志输出完整提示词（System/User）。
-- 真·可扩展：插件化 Agent 架构，新增一个类即可接入新玩法。
+- 真·可扩展：Skill 目录就是扩展点，新增一个 `SKILL.md` 即可接入新玩法。
 - 真·可落地：脚本一键起（后端 8088），RAG/代理都是可选项。
 
 ## 快速开始
@@ -216,9 +216,9 @@ metadata:
 
 ---
 
-## V1 架构（Legacy）
+## V1 兼容入口（Legacy）
 
-V1 代码保留在 `legacy/` 包中，通过 `POST /api/game/generate` 仍可访问。
+V1 代码保留在 `legacy/` 包中，通过 `POST /api/game/generate` 仍可访问。前端默认不再调用该入口；它只用于旧调用方、离线模板回退或兼容测试。
 
 ```
 用户输入 → IntentAnalyzer（规则引擎）→ GameGeneratorAgent → 子 Agent.run()
@@ -227,7 +227,7 @@ V1 代码保留在 `legacy/` 包中，通过 `POST /api/game/generate` 仍可访
     └── UniversalGameAgent（LLM 单次生成）
 ```
 
-V1 方式扩展：继承 `BaseAgent` 写 Java 类，启动后自动注册。
+V1 方式扩展：继承 `BaseAgent` 写 Java 类，启动后自动注册。新游戏能力优先使用 V2 Skill 方式。
 
 ---
 
@@ -246,12 +246,14 @@ docker-compose up -d elasticsearch
 
 ## API
 
+前端默认调用 V2：
+
 ```bash
-# V2（推荐）：AgentLoop 多轮迭代
+# V2（默认）：AgentLoop 多轮迭代
 POST /api/game/v2/generate
 { "userInput": "给6岁孩子做一个10以内加法游戏" }
 
-# V1（兼容）：传统 Agent 单次生成
+# V1（兼容）：传统 Agent 单次生成，不作为前端默认路径
 POST /api/game/generate
 { "userInput": "...", "options": { "model": "deepseek" } }
 
@@ -287,4 +289,3 @@ Spring Boot / React / 阿里云百炼团队与所有贡献者
 ---
 
 如果它帮你节省了哪怕 10 分钟，请给它一颗 Star。你的 Star，会让更多孩子更快玩到更好的教育游戏。🌟
-

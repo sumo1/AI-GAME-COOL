@@ -5,10 +5,20 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Input, Button, Card, List, Avatar, Spin, message, Select, Tooltip } from 'antd'
 import { SendOutlined, RobotOutlined, UserOutlined } from '@ant-design/icons'
-import { generateGame } from '../services/api'
+import { extractGameInfo, generateGame } from '../services/api'
 import ReactMarkdown from 'react-markdown'
 
 const { TextArea } = Input
+
+const MODEL_LABELS: Record<string, string> = {
+  dashscope: '通义千问（DashScope）',
+  'kimi-k2': 'Moonshot-Kimi-K2-Instruct（百炼）',
+  'qwen3-coder-plus': 'Qwen3 Coder Plus（百炼）',
+  deepseek: 'DeepSeek（百炼）'
+}
+
+const hasHtmlGameData = (value: unknown): value is { html: string } =>
+  typeof value === 'object' && value !== null && 'html' in value && typeof (value as { html?: unknown }).html === 'string'
 
 interface Message {
   id: string
@@ -64,7 +74,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onGameGenerated, setLoadi
       const thinkingMessage: Message = {
         id: Date.now().toString() + '-thinking',
         type: 'assistant',
-        content: '🤔 正在分析您的需求...',
+        content: '🤔 正在生成并检查游戏...',
         timestamp: new Date()
       }
       setMessages(prev => [...prev, thinkingMessage])
@@ -79,25 +89,45 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onGameGenerated, setLoadi
         console.log('API Response:', response)
         console.log('gameData type:', typeof response.gameData)
         
-        // 组装响应卡片内容：包含Agent来源与模型名
-        const sourceLabel = response.agentSource === 'llm' ? '大模型实时生成' : '系统内置'
-        const modelLabel = response.agentSource === 'llm' ? (response.modelName || model) : undefined
+        const gameInfo = extractGameInfo(response)
 
-        const agentInfoLines = [
+        // 组装响应卡片内容：兼容 V1/V2 字段差异，只展示真实存在的信息
+        const sourceLabel = response.agentSource === 'llm' ? '大模型实时生成' : '系统内置'
+        const modelLabel = response.agentSource === 'llm' ? (response.modelName || MODEL_LABELS[model] || model) : undefined
+
+        const infoLines = [
+          gameInfo.type ? `- 类型：${gameInfo.type}` : null,
+          gameInfo.ageGroup ? `- 年龄组：${gameInfo.ageGroup}` : null,
+          gameInfo.difficulty ? `- 难度：${gameInfo.difficulty}` : null,
+          gameInfo.theme ? `- 主题：${gameInfo.theme}` : null,
+          typeof gameInfo.iterations === 'number' ? `- 迭代次数：${gameInfo.iterations}` : null,
+          typeof gameInfo.evalScore === 'number' && gameInfo.evalScore > 0 ? `- 评估得分：${gameInfo.evalScore}/100` : null,
           `- Agent：${response.agentName || '未知'}（${sourceLabel}）`,
           ...(modelLabel ? [`- 模型：${modelLabel}`] : [])
-        ].join('\n')
+        ].filter(Boolean) as string[]
+
+        const assistantSections = ['✨ 游戏生成成功！']
+
+        if (response.message && response.message !== '游戏生成成功！') {
+          assistantSections.push(response.message)
+        }
+
+        if (infoLines.length > 0) {
+          assistantSections.push(`**游戏信息：**\n${infoLines.join('\n')}`)
+        }
+
+        assistantSections.push('点击右侧预览区域查看游戏效果！')
 
         const assistantMessage: Message = {
           id: Date.now().toString() + '-response',
           type: 'assistant',
-          content: `✨ 游戏生成成功！\n\n**游戏信息：**\n- 类型：${response.config?.gameType}\n- 年龄组：${response.config?.ageGroup}\n- 难度：${response.config?.difficulty}\n- 主题：${response.config?.theme}\n${agentInfoLines}\n\n点击右侧预览区域查看游戏效果！`,
+          content: assistantSections.join('\n\n'),
           timestamp: new Date()
         }
         setMessages(prev => [...prev, assistantMessage])
         
         // gameData已经包含html字段，直接传递
-        if (response.gameData && response.gameData.html) {
+        if (hasHtmlGameData(response.gameData)) {
           console.log('Passing gameData with html to onGameGenerated')
           onGameGenerated(response.gameData)
         } else if (typeof response.gameData === 'string') {
@@ -183,7 +213,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onGameGenerated, setLoadi
         />
         {generating && (
           <div className="generating-indicator">
-            <Spin size="small" /> 正在生成游戏...
+            <Spin size="small" /> 正在生成并检查游戏...
           </div>
         )}
         <div ref={messagesEndRef} />
