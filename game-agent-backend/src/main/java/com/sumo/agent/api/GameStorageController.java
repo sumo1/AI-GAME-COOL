@@ -1,5 +1,7 @@
 package com.sumo.agent.api;
 
+import com.sumo.agent.infra.db.GameRunEntity;
+import com.sumo.agent.infra.db.GameRunRepository;
 import com.sumo.agent.infra.storage.SavedGame;
 import com.sumo.agent.infra.storage.GameStorageService;
 import org.slf4j.Logger;
@@ -28,6 +30,9 @@ public class GameStorageController {
 
     @Autowired
     private GameStorageService gameStorageService;
+
+    @Autowired
+    private GameRunRepository gameRunRepository;
 
     /**
      * 保存游戏到服务器
@@ -63,32 +68,36 @@ public class GameStorageController {
     }
 
     /**
-     * 获取所有保存的游戏列表
+     * 获取所有保存的游戏列表（兼容期：改读 game_runs 表）。
+     *
+     * 响应 schema 与改造前对齐——前端 ServerGameHistory.tsx 不调整字段名也能渲染。
+     * 旧字段（type/ageGroup/difficulty/theme/fileName/fileSize）填 null/0；
+     * 时间戳保持 ISO 字符串格式（与老接口一致）；
+     * 新增 evalScore / favorited 字段。
      */
     @GetMapping("/list")
     public ResponseEntity<?> listGames() {
         try {
-            List<SavedGame> games = gameStorageService.listGames();
+            List<GameRunEntity> games = gameRunRepository.listRecent(100);
 
-            // 转换为不包含LocalDateTime的Map列表
             List<Map<String, Object>> gamesList = new ArrayList<>();
-            for (SavedGame game : games) {
+            for (GameRunEntity game : games) {
                 Map<String, Object> gameMap = new HashMap<>();
                 gameMap.put("id", game.getId());
                 gameMap.put("title", game.getTitle());
-                gameMap.put("type", game.getType());
-                gameMap.put("ageGroup", game.getAgeGroup());
-                gameMap.put("difficulty", game.getDifficulty());
-                gameMap.put("theme", game.getTheme());
-                gameMap.put("fileName", game.getFileName());
-                gameMap.put("fileSize", game.getFileSize());
-                // 将LocalDateTime转换为字符串
+                gameMap.put("type", null);
+                gameMap.put("ageGroup", null);
+                gameMap.put("difficulty", null);
+                gameMap.put("theme", null);
+                gameMap.put("fileName", null);
+                gameMap.put("fileSize", 0);
                 if (game.getCreatedAt() != null) {
-                    gameMap.put("createdAt", game.getCreatedAt().toString());
+                    String iso = game.getCreatedAt().toString();
+                    gameMap.put("createdAt", iso);
+                    gameMap.put("updatedAt", iso);
                 }
-                if (game.getUpdatedAt() != null) {
-                    gameMap.put("updatedAt", game.getUpdatedAt().toString());
-                }
+                gameMap.put("evalScore", game.getEvalScore());
+                gameMap.put("favorited", game.isFavorited());
                 gamesList.add(gameMap);
             }
 
@@ -98,12 +107,12 @@ public class GameStorageController {
             response.put("count", games.size());
 
             return ResponseEntity.ok(response);
-        } catch (IOException e) {
+        } catch (Exception e) {
             logger.error("获取游戏列表失败", e);
 
             Map<String, Object> errorResponse = new HashMap<>();
             errorResponse.put("success", false);
-            errorResponse.put("error", e.getMessage());
+            errorResponse.put("error", "请稍后重试");
 
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
         }

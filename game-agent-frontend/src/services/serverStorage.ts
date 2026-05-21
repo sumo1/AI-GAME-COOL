@@ -20,6 +20,10 @@ export interface ServerSavedGame {
   updatedAt?: string
   fileName?: string
   fileSize?: number
+  /** 由 game_runs 表带过来的评估分（Step 4a 接入后非空） */
+  evalScore?: number
+  /** 由 game_runs 表带过来的收藏状态（Step 4a 接入后非空） */
+  favorited?: boolean
 }
 
 export interface StorageStats {

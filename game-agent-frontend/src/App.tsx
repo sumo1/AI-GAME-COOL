@@ -4,25 +4,27 @@
  */
 import React, { useState, useEffect } from 'react'
 import { Layout, Typography, ConfigProvider, theme, Button, Drawer } from 'antd'
-import { MenuFoldOutlined, MenuUnfoldOutlined, MessageOutlined, CloseOutlined, HistoryOutlined, CloudServerOutlined } from '@ant-design/icons'
+import { MenuFoldOutlined, MenuUnfoldOutlined, MessageOutlined, CloseOutlined, HistoryOutlined, CloudServerOutlined, UnorderedListOutlined } from '@ant-design/icons'
 import ChatInterface from './components/ChatInterface'
 import GamePreview from './components/GamePreview'
 import GameHistory from './components/GameHistory'
 import ServerGameHistory from './components/ServerGameHistory'
+import SessionHistory from './components/SessionHistory'
 import './styles/App.css'
 
-const { Header, Content, Sider } = Layout
+const { Header, Content } = Layout
 const { Title } = Typography
 
 const App: React.FC = () => {
   const [gameData, setGameData] = useState<any>(null)
-  const [loading, setLoading] = useState(false)
+  const [, setLoading] = useState(false)
   const [gameKey, setGameKey] = useState(0)
   const [chatCollapsed, setChatCollapsed] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const [drawerVisible, setDrawerVisible] = useState(false)
   const [historyVisible, setHistoryVisible] = useState(false)
   const [serverHistoryVisible, setServerHistoryVisible] = useState(false)
+  const [sessionHistoryVisible, setSessionHistoryVisible] = useState(false)
 
   // 检测是否为移动设备
   useEffect(() => {
@@ -164,6 +166,16 @@ const App: React.FC = () => {
               >
                 {!isMobile && '服务器'}
               </Button>
+              <Button
+                icon={<UnorderedListOutlined />}
+                onClick={() => setSessionHistoryVisible(true)}
+                type="text"
+                style={{ color: 'white' }}
+                title="会话历史"
+                data-testid="session-history-trigger"
+              >
+                {!isMobile && '会话历史'}
+              </Button>
               {!isMobile && gameData && (
                 <Button
                   className="chat-toggle-btn"
@@ -215,6 +227,15 @@ const App: React.FC = () => {
         visible={serverHistoryVisible}
         onClose={() => setServerHistoryVisible(false)}
         onLoadGame={handleLoadGame}
+      />
+
+      {/* 会话历史抽屉 */}
+      <SessionHistory
+        visible={sessionHistoryVisible}
+        onClose={() => setSessionHistoryVisible(false)}
+        onCloneSession={(newId) => {
+          localStorage.setItem('sessionId', newId)
+        }}
       />
     </ConfigProvider>
   )

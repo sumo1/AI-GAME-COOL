@@ -10,14 +10,9 @@ import {
   FullscreenOutlined,
   FullscreenExitOutlined,
   PlayCircleOutlined,
-  PauseCircleOutlined,
-  SoundOutlined,
   CodeOutlined,
   CheckCircleOutlined,
-  CloseCircleOutlined,
-  ClockCircleOutlined,
-  SaveOutlined,
-  HistoryOutlined
+  SaveOutlined
 } from '@ant-design/icons'
 import { gameStorage } from '../services/gameStorage'
 import { serverStorage } from '../services/serverStorage'
@@ -80,7 +75,6 @@ const GameContainer: React.FC<GameContainerProps> = ({ gameData, onRestart }) =>
   // 基于静态规则的轻量建议生成
   const analyzeGameHtml = (html: string) => {
     const s: { level: 'info'|'warning'|'error'; text: string }[] = []
-    const lower = html.toLowerCase()
 
     // 1) 说明与控件一致性
     const mentionsButtons = /左右按钮|点击左右|按下左右|left\s*button|right\s*button/i.test(html)

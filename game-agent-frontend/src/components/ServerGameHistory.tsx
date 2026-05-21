@@ -13,7 +13,6 @@ import {
   Popconfirm,
   message,
   Empty,
-  Tabs,
   Statistic,
   Row,
   Col,
@@ -25,11 +24,14 @@ import {
   CloudServerOutlined,
   DatabaseOutlined,
   FileOutlined,
-  ReloadOutlined
+  ReloadOutlined,
+  StarFilled,
+  StarOutlined
 } from '@ant-design/icons'
 import { serverStorage, ServerSavedGame } from '../services/serverStorage'
+import { favoriteGame, unfavoriteGame } from '../services/sessionApi'
 
-const { Title, Text, Paragraph } = Typography
+const { Text } = Typography
 
 interface ServerGameHistoryProps {
   visible: boolean
@@ -46,6 +48,7 @@ const ServerGameHistory: React.FC<ServerGameHistoryProps> = ({
   const [loading, setLoading] = useState(false)
   const [stats, setStats] = useState<any>(null)
   const [selectedGames, setSelectedGames] = useState<string[]>([])
+  const [favoritePendingId, setFavoritePendingId] = useState<string | null>(null)
 
   // 加载游戏列表
   const loadGames = async () => {
@@ -143,6 +146,33 @@ const ServerGameHistory: React.FC<ServerGameHistoryProps> = ({
       message.error('批量删除失败')
     } finally {
       setLoading(false)
+    }
+  }
+
+  // 切换收藏（乐观更新 + 失败回滚）
+  const handleToggleFavorite = async (game: ServerSavedGame) => {
+    if (!game.id) return
+    const gameId = game.id
+    const prevFavorited = !!game.favorited
+    const nextFavorited = !prevFavorited
+
+    setFavoritePendingId(gameId)
+    setGames(prev => prev.map(g => g.id === gameId ? { ...g, favorited: nextFavorited } : g))
+
+    try {
+      if (nextFavorited) {
+        await favoriteGame(gameId)
+      } else {
+        await unfavoriteGame(gameId)
+      }
+      message.success(nextFavorited ? '已收藏' : '已取消收藏')
+    } catch (err) {
+      console.error('切换收藏失败:', err)
+      message.error(err instanceof Error ? err.message : '切换收藏失败')
+      // 回滚
+      setGames(prev => prev.map(g => g.id === gameId ? { ...g, favorited: prevFavorited } : g))
+    } finally {
+      setFavoritePendingId(null)
     }
   }
 
@@ -251,6 +281,12 @@ const ServerGameHistory: React.FC<ServerGameHistoryProps> = ({
                     size="small"
                     title={
                       <Space>
+                        {game.favorited && (
+                          <StarFilled
+                            data-testid="fav-icon"
+                            style={{ color: '#faad14' }}
+                          />
+                        )}
                         <Text strong ellipsis style={{ maxWidth: 200 }}>
                           {game.title}
                         </Text>
@@ -275,6 +311,15 @@ const ServerGameHistory: React.FC<ServerGameHistoryProps> = ({
                       >
                         加载
                       </Button>,
+                      <Button
+                        key="favorite"
+                        type="link"
+                        icon={game.favorited ? <StarFilled style={{ color: '#faad14' }} /> : <StarOutlined />}
+                        loading={favoritePendingId === game.id}
+                        onClick={() => handleToggleFavorite(game)}
+                      >
+                        {game.favorited ? '取消收藏' : '收藏'}
+                      </Button>,
                       <Popconfirm
                         key="delete"
                         title="确定要从服务器删除这个游戏吗？"
@@ -294,6 +339,9 @@ const ServerGameHistory: React.FC<ServerGameHistoryProps> = ({
                   >
                     <Space direction="vertical" size="small" style={{ width: '100%' }}>
                       <Space wrap>
+                        {typeof game.evalScore === 'number' && (
+                          <Tag color="gold" data-testid="eval-score">评分 {game.evalScore}</Tag>
+                        )}
                         {game.type && (
                           <Tag color="blue">{game.type}</Tag>
                         )}

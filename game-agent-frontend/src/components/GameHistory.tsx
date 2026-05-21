@@ -29,7 +29,7 @@ import {
 import { gameStorage, SavedGame } from '../services/gameStorage'
 import type { UploadProps } from 'antd'
 
-const { Title, Text, Paragraph } = Typography
+const { Text, Paragraph } = Typography
 const { Search } = Input
 
 interface GameHistoryProps {
