@@ -4,8 +4,12 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import java.time.LocalDateTime;
 
 /**
- * 保存的游戏实体
+ * 保存的游戏实体（**已废弃**）。
+ *
+ * @deprecated since 2026-05-21
+ * 见 {@link GameStorageService}。新代码用 {@link com.sumo.agent.infra.db.GameRunEntity}。
  */
+@Deprecated(since = "2026-05-21")
 public class SavedGame {
     private String id;
     private String title;

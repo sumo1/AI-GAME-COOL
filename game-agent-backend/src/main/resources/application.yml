@@ -45,9 +45,11 @@ spring:
       base-url: https://dashscope.aliyuncs.com/compatible-mode
       chat:
         options:
-          model: ${AI_MODEL:qwen-plus}
+          model: ${AI_MODEL:qwen3.6-plus}
           temperature: 0.7
-          max-tokens: 4000
+          # max-tokens: 4000 在生成完整 HTML 游戏 + tool_call arguments 时容易截断（StreamRead UnexpectedEndOfInput）
+          # 提到 16000 给 saveGame 工具的大 htmlCode 参数留出空间
+          max-tokens: 16000
 
   
   # Thymeleaf配置

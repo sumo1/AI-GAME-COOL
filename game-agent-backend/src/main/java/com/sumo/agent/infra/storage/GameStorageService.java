@@ -19,9 +19,17 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * 游戏存储服务
- * 将游戏保存为文件系统中的HTML和JSON文件
+ * 游戏存储服务（**已废弃**）。
+ *
+ * @deprecated since 2026-05-21
+ * 文件系统存储已被 DB 化（见任务 260521-game-storage-db）。
+ * 新代码请使用 {@link com.sumo.agent.infra.storage.SessionService}
+ * + {@link com.sumo.agent.infra.db.GameRunRepository}。
+ *
+ * 本类暂保留以维持 /api/game/storage/* 端点向后兼容（Step 4 改造）。
+ * 后续任务清理。
  */
+@Deprecated(since = "2026-05-21")
 @Service
 public class GameStorageService {
 

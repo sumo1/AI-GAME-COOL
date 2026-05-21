@@ -7,6 +7,8 @@ package com.sumo.agent.api;
 import com.sumo.agent.legacy.core.GameGeneratorAgent;
 import com.sumo.agent.agent.loop.AgentLoop;
 import com.sumo.agent.agent.loop.AgentLoopResult;
+import com.sumo.agent.infra.db.SessionEntity;
+import com.sumo.agent.infra.storage.SessionService;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,6 +45,9 @@ public class GameChatController {
 
     @Autowired
     private AgentLoop agentLoop;
+
+    @Autowired
+    private SessionService sessionService;
     
     /**
      * 生成游戏
@@ -112,22 +117,42 @@ public class GameChatController {
     }
     
     /**
-     * V2 游戏生成 — 基于 AgentLoop 多轮迭代
+     * V2 游戏生成 — 基于 AgentLoop 多轮迭代 + 会话持久化
+     *
+     * 顺序：ensureSession → agentLoop.run → recordRun
+     * 写库失败不影响响应：catch 后 log.error，用户仍拿到生成的 HTML（容错优先）
      */
     @PostMapping("/v2/generate")
     public Mono<GameResponse> generateGameV2(@RequestBody GameRequest request) {
         log.info("📨 [V2] 收到游戏生成请求: {}", request.getUserInput());
 
-        String sessionId = request.getSessionId();
-        if (sessionId == null) {
-            sessionId = UUID.randomUUID().toString();
-        }
-        final String finalSessionId = sessionId;
-
+        final String requestedSessionId = request.getSessionId();
         final String finalModelKey = extractModelKey(request);
 
         return Mono.fromCallable(() -> {
+            // 1. 先 ensureSession（写库失败也要让请求继续走 AgentLoop —— 容错）
+            String sessionId = null;
+            try {
+                SessionEntity session = sessionService.ensureSession(
+                        requestedSessionId, request.getUserInput(), finalModelKey);
+                sessionId = session.getId();
+            } catch (Exception e) {
+                log.error("写入会话失败（ensureSession），降级为本次请求 UUID: {}", e.getMessage(), e);
+                sessionId = (requestedSessionId != null && !requestedSessionId.isBlank())
+                        ? requestedSessionId
+                        : UUID.randomUUID().toString();
+            }
+            final String finalSessionId = sessionId;
+
+            // 2. 跑 AgentLoop（不进 synchronized 块，让多请求并行）
             AgentLoopResult result = agentLoop.run(request.getUserInput(), finalModelKey);
+
+            // 3. 写 messages + game_run（失败也不影响响应）
+            try {
+                sessionService.recordRun(finalSessionId, request.getUserInput(), result, finalModelKey);
+            } catch (Exception e) {
+                log.error("写入会话失败（recordRun, sessionId={}）: {}", finalSessionId, e.getMessage(), e);
+            }
 
             GameResponse response = new GameResponse();
             response.setSessionId(finalSessionId);

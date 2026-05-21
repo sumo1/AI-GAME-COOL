@@ -89,6 +89,13 @@ data/
 
 把 Step 1-5 的 `[ ]` 改为 `[x]`，决策记录中加最终 commit hash 列。
 
+#### 7. Step 3 越界改动的事后登记
+
+Step 3 改了 `application.yml` 但不在 Step 3 plan 的"可改文件"清单中（合理的必要超出，见 progress.md 决策表）。本 step 必须补做：
+- 把 `AI_MODEL` 默认值（`qwen-plus → qwen3.6-plus`）同步到 `docs/engineering/conventions.md §8.2 关键变量`
+- 把 `max-tokens` 改动（`4000 → 16000`）记入 conventions §12（数据持久化章节末尾的"LLM 配置"小节）或新建 §13
+- 把 memory 文档 `2026-05-21-llm-max-tokens-tool-args-truncation.md` 上浮到 `docs/knowledge/pitfalls/llm-tool-args-truncation.md`（按 dreamer 流程脱敏 + 加双向链接）
+
 ### 文档检查触发
 
 完成本 step 文档改动后：

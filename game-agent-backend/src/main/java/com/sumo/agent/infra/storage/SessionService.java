@@ -1,0 +1,134 @@
+package com.sumo.agent.infra.storage;
+
+import com.sumo.agent.agent.loop.AgentLoopResult;
+import com.sumo.agent.infra.db.GameRunEntity;
+import com.sumo.agent.infra.db.GameRunRepository;
+import com.sumo.agent.infra.db.MessageEntity;
+import com.sumo.agent.infra.db.MessageRepository;
+import com.sumo.agent.infra.db.SessionEntity;
+import com.sumo.agent.infra.db.SessionRepository;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+
+import java.time.Instant;
+import java.util.Optional;
+
+/**
+ * 会话写入编排——把"一次生成请求"原子地写入 sessions / messages / game_runs。
+ *
+ * 不在 AgentLoop 内部插钩；调用方在 controller 层依次调
+ * ensureSession → agentLoop.run → recordRun。
+ *
+ * 任务 260521-game-storage-db Step 3。
+ */
+@Slf4j
+@Service
+public class SessionService {
+
+    /** session 标题最长 40 字符；超过加 "..."（共 ≤ 43）。 */
+    private static final int TITLE_MAX_LEN = 40;
+
+    private final SessionRepository sessions;
+    private final MessageRepository messages;
+    private final GameRunRepository gameRuns;
+
+    public SessionService(SessionRepository sessions,
+                          MessageRepository messages,
+                          GameRunRepository gameRuns) {
+        this.sessions = sessions;
+        this.messages = messages;
+        this.gameRuns = gameRuns;
+    }
+
+    /**
+     * 创建或复用 session。
+     * - sessionId 非空且在库中存在 → touch updatedAt 后返回原 entity
+     * - 否则新建（id = UUID 或调用方传入），title 截断自 userInput
+     */
+    public synchronized SessionEntity ensureSession(String sessionId, String userInput, String modelKey) {
+        if (sessionId != null && !sessionId.isBlank()) {
+            Optional<SessionEntity> existing = sessions.findById(sessionId);
+            if (existing.isPresent()) {
+                long now = Instant.now().toEpochMilli();
+                sessions.touch(sessionId, now);
+                SessionEntity e = existing.get();
+                e.setUpdatedAt(Instant.ofEpochMilli(now));
+                return e;
+            }
+        }
+
+        SessionEntity entity = new SessionEntity();
+        // 若调用方传了非空但不存在的 sessionId，仍尊重它（前端可能持有 localStorage 里的旧 id）
+        if (sessionId != null && !sessionId.isBlank()) {
+            entity.setId(sessionId);
+        }
+        entity.setTitle(buildTitle(userInput));
+        entity.setModelKey(modelKey);
+        entity.setMessageCount(0);
+        entity.setGameCount(0);
+        sessions.insert(entity);
+        return entity;
+    }
+
+    /**
+     * 写入一次生成的 user + assistant 消息，以及（成功时）game_run，并更新 session 计数。
+     *
+     * 任意一步失败抛 RuntimeException——controller 层负责 catch 并保护用户响应。
+     */
+    public synchronized RecordResult recordRun(String sessionId,
+                                               String userInput,
+                                               AgentLoopResult result,
+                                               String modelKey) {
+        // 写 user 消息
+        MessageEntity userMsg = new MessageEntity();
+        userMsg.setSessionId(sessionId);
+        userMsg.setRole("user");
+        userMsg.setContent(userInput);
+        // iterations / evalScore 保持 null
+        String userMsgId = messages.insert(userMsg);
+
+        // 写 assistant 消息
+        MessageEntity asstMsg = new MessageEntity();
+        asstMsg.setSessionId(sessionId);
+        asstMsg.setRole("assistant");
+        asstMsg.setContent(result.llmMessage() != null ? result.llmMessage() : safeError(result));
+        asstMsg.setIterations(result.iterations());
+        asstMsg.setEvalScore(result.evalScore());
+        String asstMsgId = messages.insert(asstMsg);
+
+        // 写 game_run（仅成功 + 有 html 才写）
+        String gameRunId = null;
+        if (result.success() && result.gameHtml() != null && !result.gameHtml().isBlank()) {
+            String title = sessions.findById(sessionId).map(SessionEntity::getTitle).orElse(null);
+            GameRunEntity gr = new GameRunEntity();
+            gr.setSessionId(sessionId);
+            gr.setMessageId(asstMsgId);
+            gr.setTitle(title);
+            gr.setHtml(result.gameHtml());
+            gr.setEvalScore(result.evalScore());
+            gr.setIterations(result.iterations());
+            gr.setFavorited(false);
+            gameRunId = gameRuns.insert(gr);
+        }
+
+        // 更新 session 计数
+        int gameDelta = (gameRunId != null) ? 1 : 0;
+        sessions.incrementCounters(sessionId, 2, gameDelta);
+
+        return new RecordResult(userMsgId, asstMsgId, gameRunId);
+    }
+
+    private static String buildTitle(String userInput) {
+        if (userInput == null || userInput.isBlank()) return "未命名会话";
+        String trimmed = userInput.strip();
+        if (trimmed.length() <= TITLE_MAX_LEN) return trimmed;
+        return trimmed.substring(0, TITLE_MAX_LEN) + "...";
+    }
+
+    private static String safeError(AgentLoopResult result) {
+        return result.error() != null ? "[失败] " + result.error() : "[无 LLM 输出]";
+    }
+
+    /** 一次 recordRun 写入的标识符。 */
+    public record RecordResult(String userMessageId, String assistantMessageId, String gameRunId) {}
+}
