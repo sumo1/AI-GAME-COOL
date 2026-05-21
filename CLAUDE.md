@@ -2,6 +2,46 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## 实现前必读
+
+在修改代码或编写新功能之前，按需读取：
+
+1. **`docs/engineering/conventions.md`** — 工程规范（包结构、命名、Tool/Skill 设计、错误处理、AgentLoop 边界、评估系统规范）
+2. **`docs/review/code-check.md`** — 工程审查标准
+3. **`docs/knowledge/principles/agent-system-philosophy.md`** — Agent 系统设计哲学（双 SSOT + 三时间方向）
+4. **当前活跃任务目录**（`docs/task/` 下按时间戳倒序，取最新的）：
+   - `memory/` — 决策备忘录（优先级高于早期 plan）
+   - `progress.md` — 当前进展和待办
+   - `plan/` — 子任务设计与契约
+
+## Agent 体系
+
+本仓库使用 7 个独立工种协作完成开发（流程 SSOT 在 `agents/`，平台薄引用在 `.claude/agents/`）：
+
+| Agent | 角色 | 触发 |
+|-------|------|------|
+| `task-designer` | 把需求拆为带双契约的可执行计划 | 收到新需求时 |
+| `coder` | 按契约精准施工 | 子任务 plan 就绪后 |
+| `evaluator` | 独立复跑命令、机器化验收 | coder 交付后 |
+| `code-reviewer` | 工程标准 + 任务专项审查 | 提交前 |
+| `doc-refresher` | 业务知识 SSOT 反漂移哨兵 | 每次提交 |
+| `dreamer` | 蒸馏 memory 上浮 knowledge | 阶段收尾 / memory ≥ 10 条 |
+| `ci-pre-checker` (git-push) | 提交流水线守门 | 用户说"提交"/"push" |
+
+## Git 提交
+
+使用 `git-push` skill 触发完整提交流程。直接说"push"或"提交"即可。
+
+## 内容分层
+
+| 层 | 位置 | 说明 |
+|----|------|------|
+| 工程标准 | `docs/engineering/` + `docs/review/` | 跨任务长期有效 |
+| Agent 流程 | `agents/` | skill 和 subagent 的流程 SSOT |
+| 平台配置 | `.claude/` | Claude Code 薄引用，指向 `agents/` |
+| 任务文档 | `docs/task/{YYMMDD}-{name}/` | 架构、进度、决策、审查历史 |
+| 跨任务知识 | `docs/knowledge/` | 由 dreamer 上浮维护 |
+
 ## Project Overview
 
 This is a Children's Game Generation Agent Framework (儿童游戏生成Agent框架) that uses AI to generate educational games for children through natural language conversations. The project follows a plugin-based architecture with Spring Boot backend and React frontend.
