@@ -24,10 +24,10 @@
 
 1. [x] **Step 1：基础设施** — JDBC + SQLite 依赖、`schema.sql`、DataSource 配置（端到端 7/7 通过 @ 2026-05-21，commit `5d1f27a`）
 2. [x] **Step 2：数据访问层** — 三个 Repository（手写 SQL + RowMapper）（mvn test 7/7 + 端到端 SSOT 通过 @ 2026-05-21，commit `cc242a1`）
-3. [x] **Step 3：服务编排** — SessionService + GameChatController 改造 + 老服务 @Deprecated（mvn test 12/12 + 9/9 端到端 SSOT 通过 @ 2026-05-21）
-4. [ ] **Step 4a（并行）：后端 API** — 新增 `/api/sessions/*` 端点；`/api/game/storage/list` 改读 game_runs
-5. [ ] **Step 4b（并行）：前端 UI** — `ServerGameHistory` 改读新接口、新增 `SessionHistory` 抽屉、收藏按钮
-6. [ ] **Step 5：清理与文档** — `conventions.md` 同步、`doc-refresher` 验证、verify 流程跑一次
+3. [x] **Step 3：服务编排** — SessionService + GameChatController 改造 + 老服务 @Deprecated（mvn test 12/12 + 9/9 端到端 SSOT 通过 @ 2026-05-21，commit `160d93a`）
+4. [x] **Step 4a（并行）：后端 API** — 新增 `/api/sessions/*` 11 端点；`/api/game/storage/list` 改读 game_runs（mvn test 8/8 + 端到端 10/10 通过 @ 2026-05-21，commit `3b75fab`）
+5. [x] **Step 4b（并行）：前端 UI** — `ServerGameHistory` 改读新接口、新增 `SessionHistory` 抽屉、收藏按钮（npx tsc + npm build + browser-harness 真验证通过 @ 2026-05-21，commit `3b75fab`）
+6. [x] **Step 5：清理与文档** — conventions §12/§13、CLAUDE.md、README、knowledge/pitfalls 上浮、轻量端到端 9/9 SSOT @ 2026-05-21
 
 ## 决策记录
 
@@ -39,6 +39,8 @@
 | 收藏机制：`game_runs.favorited BOOLEAN` | 2026-05-21 | 后续 RAG few-shot 任务从此字段筛选样本 |
 | Step 4 内部前后端可并行 | 2026-05-21 | 接口契约在 Step 4a plan 中冻结；4b 按契约消费 |
 | Step 3 改 application.yml model + max-tokens | 2026-05-21 | `qwen-plus → qwen3.6-plus`、`max-tokens 4000 → 16000`。Step 3 plan 未列 application.yml 为"可改文件"——此为合理超出（必要的 LLM 配置修复，详见 memory/2026-05-21-llm-max-tokens-tool-args-truncation.md）。Step 5 需把 `AI_MODEL` 默认值同步到 `conventions.md §8.2`，把 max-tokens memory 上浮到 `docs/knowledge/pitfalls/` |
+| Step 5 收口拆分 | 2026-05-21 | "贪吃蛇可玩性自动验证"超出存储任务范围，独立成新任务 `260521-playability-oracle`。Step 5 只做：轻量端到端（无 LLM 也能验的 API SSOT）+ 文档同步 |
+| Step 5 端到端 LLM 失败但通过 | 2026-05-21 | DashScope free tier 当日耗尽（403 AllocationQuota.FreeTierOnly）。**反向证明**了 SessionService 容错路径正确：DB 仍写入 sessions+messages、game_runs=0、assistant content 含 [失败] 前缀。9/9 SSOT 断言全部通过（覆盖 list/messages/games/favorites/clone/delete/老兼容接口） |
 
 ## 不变的边界（已冻结，不许在本任务里动）
 

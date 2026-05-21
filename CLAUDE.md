@@ -42,6 +42,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | 任务文档 | `docs/task/{YYMMDD}-{name}/` | 架构、进度、决策、审查历史 |
 | 跨任务知识 | `docs/knowledge/` | 由 dreamer 上浮维护 |
 
+## 数据持久化
+
+- 会话与游戏存储在 SQLite（`./game-agent-backend/data/game-agent.db`），由 `infra/db/*` 模块管理
+- 老的 `saved-games/` 目录保留向后兼容（@Deprecated）
+- 详见 `docs/engineering/conventions.md § 12`
+- 重置：`rm -f ./game-agent-backend/data/game-agent.db*` 后重启应用自动重建 schema
+
 ## Project Overview
 
 This is a Children's Game Generation Agent Framework (儿童游戏生成Agent框架) that uses AI to generate educational games for children through natural language conversations. The project follows a plugin-based architecture with Spring Boot backend and React frontend.
@@ -156,7 +163,14 @@ com.sumo.agent/
 │   │   ├── DashScopeConfig.java
 │   │   └── ...
 │   ├── config/                       #   应用配置（Jackson, RestClient）
-│   └── storage/                      #   游戏存储（GameStorageService, SavedGame）
+│   ├── db/                           #   SQLite 持久化（任务 260521）
+│   │   ├── DataSourceConfig.java     #     连接池 + WAL + foreign_keys=ON
+│   │   ├── SessionEntity / Repository
+│   │   ├── MessageEntity / Repository
+│   │   └── GameRunEntity / Repository
+│   └── storage/                      #   游戏存储
+│       ├── SessionService.java       #     会话编排（写入 sessions/messages/game_runs）
+│       └── GameStorageService.java   #     @Deprecated 老文件存储（兼容期）
 │
 ├── knowledge/                        # RAG 知识层
 │   ├── VectorStore.java

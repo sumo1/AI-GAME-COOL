@@ -235,14 +235,21 @@ V1 方式扩展：继承 `BaseAgent` 写 Java 类，启动后自动注册。新�
 
 - 必填：`ALIYUN_API_KEY`（阿里云百炼 API Key）
 - 可选：
+  - `AI_MODEL`：默认 `qwen3.6-plus`（之前是 `qwen-plus`，由于 tool args 兼容问题切换）
   - `SERVER_PORT`：后端端口（默认 8088）
   - `AGENT_RAG_TYPE`：`memory`（默认）/ `elasticsearch` / `none`
+  - `AGENT_DB_URL`：SQLite 文件路径（默认 `jdbc:sqlite:./data/game-agent.db`）
   - `PROXY_ENABLED/TYPE/HOST/PORT`：代理配置
 
 RAG（可选）：
 ```bash
 docker-compose up -d elasticsearch
 ```
+
+数据持久化（SQLite，任务 260521 引入）：
+- 会话与生成的游戏存在 `game-agent-backend/data/game-agent.db`
+- 重置数据：`rm -f ./game-agent-backend/data/game-agent.db*`，重启应用自动重建
+- 备份：`cp ./game-agent-backend/data/game-agent.db <backup>`
 
 ## API
 

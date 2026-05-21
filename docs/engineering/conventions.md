@@ -271,8 +271,9 @@ metadata:
 | `ALIYUN_API_KEY` | 无（必填） | DashScope API Key |
 | `AGENT_RAG_TYPE` | `memory` | RAG 后端：`memory` / `elasticsearch` / `embedded` |
 | `AGENT_RAG_ENABLED` | `true` | 是否启用 RAG |
-| `AI_MODEL` | `qwen-plus` | 默认模型 |
+| `AI_MODEL` | `qwen3.6-plus` | 默认模型（任务 260521 改自 `qwen-plus`，详见 §13） |
 | `SERVER_PORT` | `8088` | 后端端口 |
+| `AGENT_DB_URL` | `jdbc:sqlite:./data/game-agent.db` | SQLite 持久化文件路径（任务 260521） |
 
 新增配置项必须同步：
 1. `application.yml` 默认值
@@ -309,13 +310,88 @@ metadata:
 
 详见 **`docs/engineering/testing.md`**——三条铁律（测试先行 / 不信中间结果 / 查最原始 SSOT），覆盖 task-designer / coder / evaluator / ci-pre-checker 的共同硬约束。
 
-## 12. 待补章节
+## 12. 数据持久化
 
-> 本文档采用"先骨架再充实"策略。下列章节预留，由具体任务推进过程中补全。
+任务 260521-game-storage-db 引入。选型理由：单人项目零运维优先，SQLite 单文件嵌入，零依赖；将来切 Postgres 用 Spring JDBC 迁移成本不高于 JPA。
 
-- [ ] 12.1 RAG 与 VectorStore 实现选择指南
-- [ ] 12.2 多模型路由（ChatModelRegistry）扩展规范
-- [ ] 12.3 前端组件分层（pages / components / services）
-- [ ] 12.4 Probe 脚本扩展指南
-- [ ] 12.5 日志格式与可观察性（traceId、迭代上下文）
-- [ ] 12.6 数据持久化（在任务 260521-game-storage-db 完成后填入此处）
+### 12.1 三表速查
+
+| 表 | 字段 | 用途 |
+|----|------|------|
+| `sessions` | id / title / model_key / created_at / updated_at / message_count / game_count | 一次会话上下文 |
+| `messages` | id / session_id / role / content / iterations / eval_score / created_at | user / assistant / system 消息 |
+| `game_runs` | id / session_id / message_id / title / html / eval_score / iterations / favorited / created_at | 一次成功生成的 HTML 游戏 |
+
+时间字段统一 `INTEGER`（毫秒 epoch），不用 `DATETIME`；`favorited` 用 `INTEGER` 0/1（Repository 内部转 boolean）。
+
+### 12.2 文件路径与备份
+
+- DB 文件 `./data/game-agent.db`（cwd = `game-agent-backend/`，所以实际是 `game-agent-backend/data/game-agent.db`）
+- WAL 模式产物：`*.db-wal`、`*.db-shm`
+- 重置：`rm -f ./game-agent-backend/data/game-agent.db*`，启动时 schema.sql 自动重建
+- 备份：`cp ./game-agent-backend/data/game-agent.db <backup-path>` 单文件即可
+- `.gitignore` 已忽略 `data/`、`*.db`、`*.db-{journal,shm,wal}`
+
+### 12.3 并发约束（重要）
+
+- HikariCP `maximum-pool-size: 1`：SQLite 不允许多写者
+- WAL 模式：读写并发可（写写仍互斥）
+- Service 层（如 `SessionService`）写方法 `synchronized` 兜底
+- Repository 写方法（insert / update / delete）一律 `synchronized`
+
+### 12.4 PRAGMA 是连接级（隐式坑）
+
+`PRAGMA foreign_keys = ON` **每个连接**独立设置，HikariCP 新连接默认是 OFF。  
+解法：`spring.datasource.hikari.connection-init-sql: PRAGMA foreign_keys = ON`，每次拿连接执行。  
+直接用 `sqlite3` CLI 查 DB 时默认 FK off——验证 FK CASCADE 时**必须**先 `PRAGMA foreign_keys=ON;` 再插孤儿数据看是否报错。
+
+详见 `docs/knowledge/pitfalls/sqlite-pragma-per-connection.md`（待 260521 任务收口时上浮）。
+
+### 12.5 新增表的步骤
+
+1. 改 `src/main/resources/schema.sql`（必须 `IF NOT EXISTS` 幂等）
+2. 新建 `XxxEntity.java`（POJO + `@Data`，时间用 `Instant`）
+3. 新建 `XxxRepository.java`（构造器注入 `JdbcTemplate`，写方法 `synchronized`，SQL 字符串常量化）
+4. 加 `RepositorySmokeTest` 用例（真启 Spring + 真 SQLite，不 mock）
+5. 上层用 `@Service` 编排，不直接暴露 `JdbcTemplate`
+
+### 12.6 list 与 detail 的字段分离
+
+`game_runs.html` 是大字段（10KB-100KB+）。Repository 设计：
+- `listBySession / listRecent / listFavorites` 等列表接口 SQL **不 SELECT html**，RowMapper 不读 html，返回 entity 的 html 字段是 null
+- 详情用 `findHtmlById` 专门只查 id+html
+- 调用方注意：`findHtmlById` 返回的 entity 仅 id+html 有效，其它字段是默认值
+
+## 13. LLM 配置
+
+### 13.1 默认模型与 max_tokens
+
+```yaml
+spring.ai.openai.chat.options:
+  model: ${AI_MODEL:qwen3.6-plus}
+  temperature: 0.7
+  max-tokens: 16000
+```
+
+`max-tokens` 历史值是 4000，任务 260521 改到 16000——原因：DashScope OpenAI 兼容模式下 `max_tokens` **覆盖 tool_call.arguments 字符串**。当 LLM 调 `saveGame(htmlCode="<完整 HTML>")` 时，整段 HTML 序列化为 JSON 字符串后算入 `max_tokens`；超出会被静默截断。
+
+报错信号高度误导（容易误判为 API 兼容性问题）：
+- Spring AI Jackson 端：`UnexpectedEndOfInputException: was expecting closing quote for a string value`
+- DashScope 服务端二级错误：`InvalidParameter: function.arguments parameter must be in JSON format`
+
+详见 `docs/knowledge/pitfalls/llm-tool-args-truncation.md`（待 260521 任务收口时上浮）。
+
+### 13.2 多模型路由
+
+`infra/model/ChatModelRegistry` 提供 key 路由（`dashscope` / `kimi-k2` / `qwen3-coder-plus` / `deepseek`）。前端通过 `options.model` 字段选择，未指定则走 `@Primary` 的 DashScope。
+
+注意：百炼 free tier 配额有限——切模型不一定能解决 `function.arguments` 问题；扩 `max-tokens` 才是治本。
+
+## 14. 待补章节
+
+- [ ] 14.1 RAG 与 VectorStore 实现选择指南
+- [ ] 14.2 ChatModelRegistry 扩展规范（如何加新模型）
+- [ ] 14.3 前端组件分层（pages / components / services）
+- [ ] 14.4 Probe 脚本扩展指南
+- [ ] 14.5 日志格式与可观察性（traceId、迭代上下文）
+- [ ] 14.6 游戏可玩性自动验证（任务 260521-playability-oracle 完成后填入）

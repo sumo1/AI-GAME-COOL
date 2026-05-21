@@ -1,5 +1,7 @@
 # LLM max_tokens 不够导致 tool_call.arguments JSON 被截断
 
+> ⬆️ 已上浮到 [docs/knowledge/pitfalls/llm-tool-args-truncation.md](../../../knowledge/pitfalls/llm-tool-args-truncation.md)（dreamer @ 2026-05-21）
+
 > 时间：2026-05-21
 > 上下文：Step 3 端到端验证一直生成失败
 > 来源：实施踩坑（误以为是 quota / API 兼容性问题）

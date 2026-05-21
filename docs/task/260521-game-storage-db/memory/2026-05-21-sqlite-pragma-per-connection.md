@@ -1,5 +1,7 @@
 # SQLite PRAGMA 是连接级，必须每个连接重设
 
+> ⬆️ 已上浮到 [docs/knowledge/pitfalls/sqlite-pragma-per-connection.md](../../../knowledge/pitfalls/sqlite-pragma-per-connection.md)（dreamer @ 2026-05-21）
+
 > 时间：2026-05-21
 > 上下文：Step 1 端到端 SSOT 验证
 > 来源：实施踩坑——断言 4 (foreign_keys=1) 在 sqlite3 CLI 查到 0
