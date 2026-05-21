@@ -22,8 +22,8 @@
 
 ## 步骤
 
-1. [x] **Step 1：基础设施** — JDBC + SQLite 依赖、`schema.sql`、DataSource 配置（端到端 7/7 通过 @ 2026-05-21）
-2. [ ] **Step 2：数据访问层** — 三个 Repository（手写 SQL + RowMapper）
+1. [x] **Step 1：基础设施** — JDBC + SQLite 依赖、`schema.sql`、DataSource 配置（端到端 7/7 通过 @ 2026-05-21，commit `5d1f27a`）
+2. [x] **Step 2：数据访问层** — 三个 Repository（手写 SQL + RowMapper）（mvn test 7/7 + 端到端 SSOT 通过 @ 2026-05-21）
 3. [ ] **Step 3：服务编排** — AgentLoop 写入路径、老 Service 标 `@Deprecated`
 4. [ ] **Step 4a（并行）：后端 API** — 新增 `/api/sessions/*` 端点；`/api/game/storage/list` 改读 game_runs
 5. [ ] **Step 4b（并行）：前端 UI** — `ServerGameHistory` 改读新接口、新增 `SessionHistory` 抽屉、收藏按钮
