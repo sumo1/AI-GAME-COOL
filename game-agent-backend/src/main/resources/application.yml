@@ -12,6 +12,22 @@ spring:
   application:
     name: game-agent-backend
 
+  # SQLite 持久化（任务 260521-game-storage-db）
+  datasource:
+    url: ${AGENT_DB_URL:jdbc:sqlite:./data/game-agent.db}
+    driver-class-name: org.sqlite.JDBC
+    hikari:
+      maximum-pool-size: 1     # SQLite 单写者
+      minimum-idle: 1
+      pool-name: GameAgentSqlitePool
+      # 每个新连接都执行：SQLite 的 foreign_keys 是连接级 PRAGMA，必须每个连接显式开
+      connection-init-sql: PRAGMA foreign_keys = ON
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+      continue-on-error: false
+
   # Jackson 配置（Java 代码中 JacksonConfig 已处理 JavaTimeModule + 禁用时间戳）
   jackson:
     date-format: yyyy-MM-dd HH:mm:ss

@@ -21,6 +21,14 @@ game-agent-backend/target/
 # 本地游戏存档（运行时生成）
 game-agent-backend/saved-games/
 
+# SQLite 持久化数据（任务 260521-game-storage-db）
+data/
+game-agent-backend/data/
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
 # Coverage / Reports
 coverage/
 *.lcov
