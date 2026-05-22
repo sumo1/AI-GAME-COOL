@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>最小键盘响应（oracle PASS 对照）</title>
+</head>
+<body>
+  <div id="counter">0</div>
+  <script>
+    let n = 0;
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === 'd') {
+        n++;
+        document.getElementById('counter').innerText = String(n);
+      }
+    });
+  </script>
+</body>
+</html>

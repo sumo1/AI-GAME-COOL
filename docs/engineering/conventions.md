@@ -394,4 +394,4 @@ spring.ai.openai.chat.options:
 - [ ] 14.3 前端组件分层（pages / components / services）
 - [ ] 14.4 Probe 脚本扩展指南
 - [ ] 14.5 日志格式与可观察性（traceId、迭代上下文）
-- [ ] 14.6 游戏可玩性自动验证（任务 260521-playability-oracle 完成后填入）
+- [x] 14.6 游戏可玩性自动验证 — 见 `docs/engineering/testing.md §1.5`（任务 260521-playable-snake-evolution 完成）

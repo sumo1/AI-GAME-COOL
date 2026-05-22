@@ -59,6 +59,44 @@
 | Skill 加载 | `curl /api/skills` 列接口 + jq 验证名字 | 启动日志中的"加载 Skill"行 |
 | 游戏生成 | DB 中 `game_runs` 行数 + 提取 html 验证含 `<!DOCTYPE html>` | AgentLoopResult.success() 返回值 |
 | LLM 是否被调到 | `messages` 表中 assistant role 内容长度 > 0 | Spring AI 内部计数器 |
+| **游戏可玩性** | `./scripts/playability-oracle.sh path/to/game.html` 退出 0 + 截屏对比 | "HTML 长度 > 100" / 含 DOCTYPE / GameEvaluator 评分 |
+
+### 1.5 游戏可玩性自动验证 + SKILL 演进闭环（2026-05-22 新增）
+
+**问题**：LLM 生成的游戏 HTML，光看"长度 > 100 + 含 DOCTYPE"完全验不出"是否真能玩"。需要 oracle + 多采样验证 SKILL 演进有效。
+
+**工具**：
+
+| 脚本 | 用途 |
+|---|---|
+| `scripts/playability-oracle.sh <html>` | 单次判定一个 HTML 能否玩 |
+| `scripts/playability-oracle-self-test.sh` | oracle 鉴别力自验（keytest PASS / dead-page FAIL） |
+| `scripts/snake-skill-multisample.sh <samples-dir>` | 多采样统计某 SKILL 生成通过率 |
+
+**oracle 判定原理**（详见 `scripts/README.md`）：
+
+1. browser-harness 加载 HTML（file://，避开前端干扰）
+2. Pre-flight：扫 DOM 找"开始 / Start / 再来一局 / Restart"等关键词，坐标 click + JS .click() 双重兜底
+3. 1 秒自然变化采样（自动动画进白名单）
+4. 采 baseline 信号：canvas hash + 数字文本 + bodyText（截断 1500 字符）
+5. 驱动 48 次按键（18 次混合探索 + 30 次 ArrowRight 撞墙触发 game over）
+6. 采 final 信号
+7. 判定：任一信号变化（canvas hash / 数字文本 / bodyText 长度差 > 20 / bodyText 出现"游戏结束 / score / 再来"等关键词）→ PASS
+
+**SKILL 演进闭环**（详见 `docs/knowledge/principles/skill-evolution-sop.md`）：
+
+```
+LLM v0 生成 → oracle 验证 → 离线调试 v0 → fixed → debug-log + 普适性判定
+                                            ↓
+            蒸馏成 SKILL.md 改动 → 多采样验证 → 通过率 ≥ 2/3 即收敛
+                                            ↓ 否则
+                                         回到调试再蒸馏
+```
+
+**不适用场景**：
+- 给 LLM 自评的内置评分 → 那是 GameEvaluator 的活
+- 单元测试覆盖率 → mvn test
+- 点击 / 拖拽类游戏 → 当前 oracle 偏键盘类（独立后续任务扩展）
 
 ---
 

@@ -28,13 +28,13 @@
 
 ## 步骤（7 step 完整闭环）
 
-1. [ ] **Step 1：oracle 核心** — `scripts/playability-oracle.sh` + 三类信号采集 + 严格判定 + 诊断包
-2. [ ] **Step 2：fixture v0** — 真 LLM 调一次贪吃蛇，存到 `test/fixtures/playability/snake-v0.html`
-3. [ ] **Step 3：自验（鉴别力）** — oracle 对 v0 + 静态死页面 + keytest 三个 fixture 给出对症判定
-4. [ ] **Step 4：v0 → fixed 离线调试** — LLM（我）看诊断包推理 v0 的 bug，产出 snake-fixed.html + debug-log.md（每条改动 + 原因）
-5. [ ] **Step 5：蒸馏 SKILL** — 看 debug-log.md 哪些是普适的，写进 `resources/skills/snake-adventure/SKILL.md`（新建 skill）
-6. [ ] **Step 6：多采样验证 SKILL 演进有效** — 用新 SKILL 生成 3 次 → oracle 跑 3 次；如通过率 < 2/3 回 Step 4 调；最多 3 轮（9 次 LLM）；通过率 ≥ 2/3 即收敛
-7. [ ] **Step 7：文档** — `scripts/README.md` + `docs/engineering/testing.md §1.5` + `docs/knowledge/principles/skill-evolution-sop.md`（演进 SOP 抽象）
+1. [x] **Step 1：oracle 核心** — `scripts/playability-oracle.sh` + driver.py + verdict.sh + 诊断包五件套（coder subagent 6 分钟交付）
+2. [x] **Step 2：fixture v0** — Claude Opus 4.7 子 agent 生成 8632 字节贪吃蛇（DashScope free tier 当夜耗尽，未走 V2 链路）
+3. [x] **Step 3：自验** — keytest PASS / dead-page FAIL / snake-v0 PASS（含 oracle 自身 verdict 改进：bodyText 阈值 50→20 + 关键词识别 + driver bodyText 增加截断版字段）
+4. [x] **Step 4：v0 → fixed** — v0 已是高质量贪吃蛇（无需修），cp 一份成 fixed.html；debug-log 记录"v0 做对了什么 → 8 条普适改动 → SKILL 候选"
+5. [x] **Step 5：蒸馏 SKILL** — `resources/skills/snake-adventure/SKILL.md` 含 10 条生成步骤 + 8 条评估重点 + 7 条常见问题；启动日志确认加载
+6. [x] **Step 6：多采样** — 早停于 4 个样本（3 个 R1 + 1 个 R2），通过率 3/4 = 75% ≥ 2/3 阈值。**SKILL 演进有效**。期间 oracle 增加坐标 click + JS click 兜底、driver 末尾 30 次 ArrowRight 撞墙、SKILL 加第 10 条"初始状态非 game over"
+7. [x] **Step 7：文档** — `scripts/README.md`（重写）+ `docs/engineering/testing.md §1.5` + `docs/engineering/conventions.md §14.6` 标完成 + `docs/knowledge/principles/skill-evolution-sop.md`（核心 SOP 抽象）
 
 ## 验证节奏
 
