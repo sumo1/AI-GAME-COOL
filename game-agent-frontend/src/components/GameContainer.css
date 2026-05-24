@@ -111,19 +111,15 @@
   height: 100%;
 }
 
-/* iframe容器 */
+/* iframe容器：不滚动，iframe 100% 占满，超出由游戏自身的 layout 自适应 */
 .game-iframe-wrapper {
   width: 100%;
   height: 100%;
   position: relative;
-  display: flex;
-  justify-content: center;
-  align-items: center;
   background: white;
   border-radius: 12px;
-  overflow: auto; /* 允许在内容过高时滚动，避免底部被裁剪 */
+  overflow: hidden;
   min-height: 0;
-  -webkit-overflow-scrolling: touch; /* iOS平滑滚动 */
 }
 
 .game-iframe {
@@ -131,32 +127,9 @@
   height: 100%;
   border: none;
   background: white;
-  /* iOS Safari 优化 */
+  display: block;
   -webkit-transform: translateZ(0);
   transform: translateZ(0);
-}
-
-/* iPad特定优化 */
-@media only screen and (min-device-width: 768px) and (max-device-width: 1024px) and (-webkit-min-device-pixel-ratio: 1) {
-  .game-iframe-wrapper {
-    /* iPad优化，确保内容完整显示 */
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    overflow: hidden;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .game-iframe {
-    /* 确保在iOS Safari中正确渲染 */
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100% !important;
-    height: 100% !important;
-  }
 }
 
 /* iOS触摸优化 */

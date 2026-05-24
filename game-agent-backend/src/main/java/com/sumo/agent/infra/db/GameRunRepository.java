@@ -51,6 +51,14 @@ public class GameRunRepository {
     private static final String SET_FAVORITED_SQL =
             "UPDATE game_runs SET favorited = ? WHERE id = ?";
 
+    private static final String DELETE_BY_ID_SQL =
+            "DELETE FROM game_runs WHERE id = ?";
+
+    private static final String COUNT_SQL = "SELECT COUNT(*) FROM game_runs";
+
+    private static final String SUM_HTML_SIZE_SQL =
+            "SELECT COALESCE(SUM(LENGTH(html)), 0) FROM game_runs";
+
     /** 完整 RowMapper（读所有字段，含 html）。 */
     private static final RowMapper<GameRunEntity> FULL_ROW_MAPPER = (rs, rowNum) -> {
         GameRunEntity e = new GameRunEntity();
@@ -148,5 +156,20 @@ public class GameRunRepository {
 
     public synchronized int setFavorited(String id, boolean favorited) {
         return jdbc.update(SET_FAVORITED_SQL, favorited ? 1 : 0, id);
+    }
+
+    /** 按 id 删除一条 game_run，返回受影响行数（0 = 不存在）。 */
+    public synchronized int deleteById(String id) {
+        return jdbc.update(DELETE_BY_ID_SQL, id);
+    }
+
+    public int count() {
+        Integer n = jdbc.queryForObject(COUNT_SQL, Integer.class);
+        return n != null ? n : 0;
+    }
+
+    public long totalHtmlSize() {
+        Long n = jdbc.queryForObject(SUM_HTML_SIZE_SQL, Long.class);
+        return n != null ? n : 0L;
     }
 }

@@ -14,10 +14,16 @@
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| POST | `/api/game/v2/generate` | **v2 游戏生成**（AgentLoop 多轮迭代） |
+| POST | `/api/game/v2/generate` | **v2 游戏生成**（AgentLoop 多轮迭代）；`options.model="mock-fixture"` 时旁路 LLM 直接返回 fixture |
 | POST | `/api/game/generate` | v1 游戏生成（传统 Agent） |
 | GET | `/api/game/generate/stream` | SSE 流式生成（v1） |
 | GET | `/api/game/agents` | 获取已注册 Agent 列表 |
+| POST | `/api/game/storage/save` | 用户主动保存游戏（写入 `game_runs`，session=`manual-saves`） |
+| GET | `/api/game/storage/list` | 列出保存的游戏（不含 html，多 `sessionId` 字段） |
+| GET | `/api/game/storage/{gameId}` | 获取游戏详情（含 html） |
+| DELETE | `/api/game/storage/{gameId}` | 删除单个游戏 |
+| DELETE | `/api/game/storage/batch` | 批量删除 |
+| GET | `/api/game/storage/stats` | 总数 + 总 HTML 字节数 |
 
 ---
 
@@ -42,7 +48,7 @@
 | `userInput` | string | ✅ | 用户的自然语言游戏需求描述 |
 | `sessionId` | string | ❌ | 会话 ID，用于关联请求 |
 | `options` | object | ❌ | 扩展选项 |
-| `options.model` | string | ❌ | 指定 AI 模型 key |
+| `options.model` | string | ❌ | 指定 AI 模型 key（可选 `qwen3.6-max-preview` / `qwen3.7-max` / `kimi-k2.6` / `MiniMax-M2.5` / `deepseek-v4-pro`，或 `mock-fixture` 旁路 LLM 返回 classpath fixture，详见 `docs/engineering/conventions.md §13.2`） |
 
 ### 响应
 

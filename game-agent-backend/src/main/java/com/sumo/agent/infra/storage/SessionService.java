@@ -129,6 +129,55 @@ public class SessionService {
         return result.error() != null ? "[失败] " + result.error() : "[无 LLM 输出]";
     }
 
+    /**
+     * 用户手动「保存到服务器」入口：把一份 (title, html) 直接写进 game_runs。
+     *
+     * schema 强制 game_runs.session_id / message_id NOT NULL（任务 260521 不动 schema），
+     * 所以这里复用固定的 MANUAL_SAVES_SESSION_ID 当占位 session，
+     * 每次保存补一条 system 消息满足 message FK，再插 game_run。
+     *
+     * 与 AgentLoop 自动写入的记录通过 session_id 区分（前者写真实 sessionId，
+     * 后者写 MANUAL_SAVES_SESSION_ID）；列表 / 详情接口一视同仁。
+     */
+    public synchronized String saveManualGame(String title, String html) {
+        ensureManualSavesSession();
+
+        MessageEntity placeholder = new MessageEntity();
+        placeholder.setSessionId(MANUAL_SAVES_SESSION_ID);
+        placeholder.setRole("system");
+        placeholder.setContent("[manual-save] " + (title != null ? title : "未命名游戏"));
+        String messageId = messages.insert(placeholder);
+
+        GameRunEntity gr = new GameRunEntity();
+        gr.setSessionId(MANUAL_SAVES_SESSION_ID);
+        gr.setMessageId(messageId);
+        gr.setTitle(title != null ? title : "未命名游戏");
+        gr.setHtml(html);
+        gr.setEvalScore(0);
+        gr.setIterations(0);
+        gr.setFavorited(false);
+        return gameRuns.insert(gr);
+        // 不更新 sessions 计数器：占位 session 不在「会话历史」抽屉中显示，计数无意义
+    }
+
+    /**
+     * 占位 session：所有「手动保存」的 game_run 共享这一行 sessions 记录。
+     * 与 {@link com.sumo.agent.infra.db.SessionRepository#MANUAL_SAVES_SESSION_ID} 必须保持一致。
+     */
+    private static final String MANUAL_SAVES_SESSION_ID =
+            com.sumo.agent.infra.db.SessionRepository.MANUAL_SAVES_SESSION_ID;
+
+    private void ensureManualSavesSession() {
+        if (sessions.findById(MANUAL_SAVES_SESSION_ID).isPresent()) return;
+        SessionEntity holder = new SessionEntity();
+        holder.setId(MANUAL_SAVES_SESSION_ID);
+        holder.setTitle("手动保存（用户主动保存的游戏）");
+        holder.setModelKey(null);
+        holder.setMessageCount(0);
+        holder.setGameCount(0);
+        sessions.insert(holder);
+    }
+
     /** 一次 recordRun 写入的标识符。 */
     public record RecordResult(String userMessageId, String assistantMessageId, String gameRunId) {}
 }

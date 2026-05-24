@@ -12,11 +12,14 @@ import com.sumo.agent.infra.storage.SessionService;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
@@ -31,13 +34,26 @@ import java.util.UUID;
 @CrossOrigin(origins = "*")
 public class GameChatController {
 
-    private static final String DEFAULT_MODEL_KEY = "dashscope";
+    private static final String DEFAULT_MODEL_KEY = "qwen3.6-max-preview";
 
-    private static final Map<String, String> MODEL_DISPLAY_NAMES = Map.of(
-            DEFAULT_MODEL_KEY, "通义千问（DashScope）",
-            "kimi-k2", "Moonshot-Kimi-K2-Instruct（百炼）",
-            "qwen3-coder-plus", "Qwen3 Coder Plus（百炼）",
-            "deepseek", "DeepSeek（百炼）"
+    /** Mock 演示模式 key：选中后绕过 LLM，直接返回 classpath 中的 fixture HTML */
+    private static final String MOCK_FIXTURE_KEY = "mock-fixture";
+    private static final String MOCK_FIXTURE_PATH = "mock-fixtures/snake-fixed.html";
+
+    private static final Map<String, String> MODEL_DISPLAY_NAMES = Map.ofEntries(
+            // 当前下拉框 5 个
+            Map.entry("qwen3.6-max-preview", "Qwen3.6 Max Preview"),
+            Map.entry("qwen3.7-max",         "Qwen3.7 Max"),
+            Map.entry("kimi-k2.6",            "Kimi K2.6"),
+            Map.entry("MiniMax-M2.5",         "MiniMax M2.5"),
+            Map.entry("deepseek-v4-pro",     "DeepSeek V4 Pro"),
+            // Mock 演示模式
+            Map.entry(MOCK_FIXTURE_KEY,      "Mock 演示（不调 LLM）"),
+            // 兼容旧 key
+            Map.entry("dashscope",            "通义千问（DashScope）"),
+            Map.entry("kimi-k2",              "Moonshot-Kimi-K2-Instruct（百炼）"),
+            Map.entry("qwen3-coder-plus",     "Qwen3 Coder Plus（百炼）"),
+            Map.entry("deepseek",             "DeepSeek（百炼）")
     );
     
     @Autowired
@@ -129,6 +145,11 @@ public class GameChatController {
         final String requestedSessionId = request.getSessionId();
         final String finalModelKey = extractModelKey(request);
 
+        // Mock 演示旁路：不进 AgentLoop / LLM，直接返回 fixture HTML
+        if (MOCK_FIXTURE_KEY.equalsIgnoreCase(finalModelKey)) {
+            return Mono.fromCallable(() -> buildMockFixtureResponse(requestedSessionId, request.getUserInput()));
+        }
+
         return Mono.fromCallable(() -> {
             // 1. 先 ensureSession（写库失败也要让请求继续走 AgentLoop —— 容错）
             String sessionId = null;
@@ -212,6 +233,53 @@ public class GameChatController {
         Map<String, Object> config = new HashMap<>();
         config.put("gameType", gameMeta.get("type"));
         return config;
+    }
+
+    private GameResponse buildMockFixtureResponse(String requestedSessionId, String userInput) {
+        String sessionId = (requestedSessionId != null && !requestedSessionId.isBlank())
+                ? requestedSessionId
+                : UUID.randomUUID().toString();
+
+        GameResponse response = new GameResponse();
+        response.setSessionId(sessionId);
+
+        try {
+            ClassPathResource resource = new ClassPathResource(MOCK_FIXTURE_PATH);
+            String html = new String(resource.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+
+            Map<String, Object> gameMeta = new HashMap<>();
+            gameMeta.put("title", "Mock 贪吃蛇（演示）");
+            gameMeta.put("description", userInput != null ? userInput : "Mock 演示");
+            gameMeta.put("type", "mock");
+            gameMeta.put("generated", false);
+            gameMeta.put("iterations", 0);
+            gameMeta.put("evalScore", 0);
+
+            Map<String, Object> gameData = new HashMap<>();
+            gameData.put("html", html);
+            gameData.put("type", "mock_fixture");
+            gameData.put("generatedByLLM", false);
+            gameData.put("gameData", gameMeta);
+
+            Map<String, Object> config = new HashMap<>();
+            config.put("gameType", "mock");
+
+            response.setSuccess(true);
+            response.setGameData(gameData);
+            response.setConfig(config);
+            response.setAgentName("Mock Fixture");
+            response.setAgentSource("system");
+            response.setGeneratedByLLM(false);
+            response.setModelName(MODEL_DISPLAY_NAMES.get(MOCK_FIXTURE_KEY));
+            response.setMessage("已加载 Mock 演示游戏（未调用 LLM）");
+        } catch (IOException e) {
+            log.error("加载 mock fixture 失败: {}", e.getMessage(), e);
+            response.setSuccess(false);
+            response.setError("加载 mock fixture 失败: " + e.getMessage());
+            response.setMessage("Mock 演示加载失败");
+        }
+
+        return response;
     }
 
     private String resolveModelName(String modelKey) {

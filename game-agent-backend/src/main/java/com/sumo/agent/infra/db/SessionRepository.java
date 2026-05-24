@@ -27,9 +27,16 @@ public class SessionRepository {
             "SELECT id, title, model_key, created_at, updated_at, message_count, game_count " +
                     "FROM sessions WHERE id = ?";
 
+    /**
+     * 「手动保存」用的占位 session id（{@link com.sumo.agent.infra.storage.SessionService#saveManualGame}）。
+     * 列表查询排除它——它是技术占位，不是用户对话会话，不应在「会话历史」抽屉里出现。
+     */
+    public static final String MANUAL_SAVES_SESSION_ID = "manual-saves";
+
     private static final String LIST_RECENT_SQL =
             "SELECT id, title, model_key, created_at, updated_at, message_count, game_count " +
-                    "FROM sessions ORDER BY updated_at DESC LIMIT ?";
+                    "FROM sessions WHERE id <> '" + MANUAL_SAVES_SESSION_ID + "' " +
+                    "ORDER BY updated_at DESC LIMIT ?";
 
     private static final String TOUCH_SQL =
             "UPDATE sessions SET updated_at = ? WHERE id = ?";

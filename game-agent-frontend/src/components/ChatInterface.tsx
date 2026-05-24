@@ -11,6 +11,13 @@ import ReactMarkdown from 'react-markdown'
 const { TextArea } = Input
 
 const MODEL_LABELS: Record<string, string> = {
+  'qwen3.6-max-preview': 'Qwen3.6 Max Preview',
+  'qwen3.7-max': 'Qwen3.7 Max',
+  'kimi-k2.6': 'Kimi K2.6',
+  'MiniMax-M2.5': 'MiniMax M2.5',
+  'deepseek-v4-pro': 'DeepSeek V4 Pro',
+  'mock-fixture': 'Mock 演示（不调 LLM）',
+  // 旧 key 兼容（不在下拉框，仍能显示历史会话的模型名）
   dashscope: '通义千问（DashScope）',
   'kimi-k2': 'Moonshot-Kimi-K2-Instruct（百炼）',
   'qwen3-coder-plus': 'Qwen3 Coder Plus（百炼）',
@@ -43,7 +50,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onGameGenerated, setLoadi
   ])
   const [inputValue, setInputValue] = useState('')
   const [generating, setGenerating] = useState(false)
-  const [model, setModel] = useState<string>('dashscope')
+  const [model, setModel] = useState<string>('qwen3.6-max-preview')
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const scrollToBottom = () => {
@@ -181,12 +188,14 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onGameGenerated, setLoadi
             size="small"
             value={model}
             onChange={setModel}
-            style={{ width: 200 }}
+            style={{ width: 220 }}
             options={[
-              { label: '通义千问（DashScope）', value: 'dashscope' },
-              { label: 'Moonshot-Kimi-K2-Instruct（百炼）', value: 'kimi-k2' },
-              { label: 'Qwen3 Coder Plus（百炼）', value: 'qwen3-coder-plus' },
-              { label: 'DeepSeek（百炼）', value: 'deepseek' }
+              { label: 'Qwen3.6 Max Preview', value: 'qwen3.6-max-preview' },
+              { label: 'Qwen3.7 Max', value: 'qwen3.7-max' },
+              { label: 'Kimi K2.6', value: 'kimi-k2.6' },
+              { label: 'MiniMax M2.5', value: 'MiniMax-M2.5' },
+              { label: 'DeepSeek V4 Pro', value: 'deepseek-v4-pro' },
+              { label: 'Mock 演示（不调 LLM）', value: 'mock-fixture' }
             ]}
           />
         </Tooltip>

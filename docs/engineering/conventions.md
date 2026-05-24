@@ -383,15 +383,37 @@ spring.ai.openai.chat.options:
 
 ### 13.2 多模型路由
 
-`infra/model/ChatModelRegistry` 提供 key 路由（`dashscope` / `kimi-k2` / `qwen3-coder-plus` / `deepseek`）。前端通过 `options.model` 字段选择，未指定则走 `@Primary` 的 DashScope。
+`infra/model/ChatModelRegistry` 按 `options.model` 路由到对应 `ChatModel` Bean，未指定 / 未匹配一律回落 `@Primary` DashScope。
+
+**当前下拉框暴露的 key（前端 `ChatInterface.tsx`）**：
+- `qwen3.6-max-preview`（默认）
+- `qwen3.7-max`
+- `kimi-k2.6`
+- `MiniMax-M2.5`（大小写不敏感）
+- `deepseek-v4-pro`
+- `mock-fixture` —— 绕过 LLM，`GameChatController.generateGameV2` 检测到此 key 直接返回 classpath `mock-fixtures/snake-fixed.html`；用于演示 / 离线展示，不写入 game_runs 也不调任何 ChatModel
+
+**历史 key（保留兼容、不进下拉框）**：`dashscope` / `kimi-k2` / `qwen3-coder-plus` / `deepseek`。
 
 注意：百炼 free tier 配额有限——切模型不一定能解决 `function.arguments` 问题；扩 `max-tokens` 才是治本。
 
 ## 14. 待补章节
 
 - [ ] 14.1 RAG 与 VectorStore 实现选择指南
-- [ ] 14.2 ChatModelRegistry 扩展规范（如何加新模型）
+- [x] 14.2 ChatModelRegistry 扩展规范 — 见下文 §14.2.1（任务 2026-05-24 一并扩了 5 个模型）
 - [ ] 14.3 前端组件分层（pages / components / services）
 - [ ] 14.4 Probe 脚本扩展指南
 - [ ] 14.5 日志格式与可观察性（traceId、迭代上下文）
 - [x] 14.6 游戏可玩性自动验证 — 见 `docs/engineering/testing.md §1.5`（任务 260521-playable-snake-evolution 完成）
+
+### 14.2.1 ChatModelRegistry 扩展规范
+
+加新模型走以下五步（参考已有 `Qwen36MaxPreviewConfig` 等）：
+
+1. **新建一个 `@Configuration` 类**：`infra/model/<ModelName>Config.java`，定义一个 `@Bean("<modelName>ChatModel")`，DashScope OpenAI 兼容模式时 `baseUrl` 用常量 `https://dashscope.aliyuncs.com/compatible-mode`，model 名照新模型 SDK 文档
+2. **`ChatModelRegistry`**：加 `@Autowired(required = false) @Qualifier(...)` 字段；`get(key)` 加 `equalsIgnoreCase` 分支；Bean 不可用时回落 `defaultChatModel`
+3. **前端 `ChatInterface.tsx`**：`MODEL_LABELS` map 加映射；`Select.options` 加选项
+4. **后端 `GameChatController.MODEL_DISPLAY_NAMES`**：加映射，`resolveModelName` 通过此 map 给前端展示
+5. **smoke test**：选新模型从前端发一次请求，看 `chatClient.call()` 是否能跑通；`max-tokens` 默认 16000 通常够（详见 §13.1 `function.arguments` 截断坑）
+
+5 份 Config 当前是近乎复制粘贴（仅 `model(...)` 和 Bean 名不同）。**短期不抽工厂**——配置层"每个模型一个独立文件"的清晰边界比 DRY 更值。等加到 8+ 个时再考虑统一抽 `DashScopeOpenAiCompatibleChatModelFactory.create(name)`。
