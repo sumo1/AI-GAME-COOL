@@ -13,6 +13,7 @@
 | **P5** | 工程结构重构 | ✅ 完成 | 100% | 领域驱动包结构 + GameTools 拆分 + v1 归档 |
 | **P6** | Skill 架构升级 | ✅ 完成 | 100% | Skill 从数据袋升级为可执行策略单元 |
 | **P7** | Skill 格式升级 | ✅ 完成 | 100% | YAML → SKILL.md 目录结构（AgentSkills.io 规范） |
+| **P8** | Agent Harness 轻量化改造 | ✅ 完成 | 100% | ContextRenderer + EvaluationObservation + ControlSignals/RunTrace |
 
 ---
 
@@ -91,4 +92,18 @@
 
 ---
 
-*最后更新：2026-03-29 18:00*
+## Phase 8 明细 ✅ 100%
+
+| 任务 | 状态 | 文件 |
+|------|------|------|
+| 8.1 状态/上下文拆分 | ✅ | agent/loop/ContextRenderer.java（新建）+ WorkingMemory 委托 |
+| 8.2 评估观察结构化 | ✅ | agent/evaluation/EvaluationObservation.java + ObservationIssue.java（新建）|
+| 8.3 控制信号 + 轻量轨迹 | ✅ | agent/loop/ControlSignals.java + RunTrace.java + TraceEntry.java（新建）|
+| 8.4 文档与验收基线 | ✅ | docs/upgrade/DESIGN.md §8 + 本进度看板 + task memory |
+
+测试覆盖：47 个 JUnit 用例（ContextRenderer 13 / EvalObs 9 / Issue 7 / ControlSignals 12 / RunTrace 6）。
+任务文档：`docs/task/260521-agent-harness/`。
+
+---
+
+*最后更新：2026-05-27 16:00*

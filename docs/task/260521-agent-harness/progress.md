@@ -58,7 +58,33 @@
 1. [x] **Step 1：状态与上下文拆分** — 抽 `ContextRenderer.render(WorkingMemory)`，`WorkingMemory.toContextXml()` 委托给它；`AgentLoop.buildSystemPrompt` 改用 ContextRenderer；ContextRendererTest 8 用例全过（含字节级相等 `toContextXml() == render()`）。@ 2026-05-27
 2. [x] **Step 2：评估观察结构化** — 新建 `EvaluationObservation` + `ObservationIssue`；`WorkingMemory.lastEvaluationObservation` 字段；`GameEvaluationTool` 成功 + 降级路径都写入；`ContextRenderer` 末尾追加 `<evaluation_observation>` 块（obs=null 时不输出，保字节级相等用例）。共 26 用例全过（ContextRenderer 10 / EvalObs 9 / IssueType 7）。@ 2026-05-27
 3. [x] **Step 3：控制信号与轻量轨迹** — 新建 RunTrace + TraceEntry + ControlSignals；WorkingMemory 加 runTrace/controlSignals 字段（默认非 null）；AgentLoop 每轮在质量门禁前调 recordTraceAndSignals；ContextRenderer 末尾追加 `<control_signals>` 与 `<run_trace_summary>`（默认状态全空时不输出，保字节级相等基线）；MAX_ITERATIONS=5 / QUALITY_GATE_SCORE=80 不动；trace 仅内存驻留不落库。47 用例全过（ContextRenderer 13 / ControlSignals 12 / RunTrace 6 / EvalObs 9 / Issue 7）。@ 2026-05-27
-4. [ ] **Step 4：文档与验收基线** — 同步架构文档、补充回归验证，确保后续任务能按契约执行
+4. [x] **Step 4：文档与验收基线** — `docs/upgrade/DESIGN.md §8` 加 harness 改造段（组件清单 + 数据流 + ContextRenderer 输出结构 + 字节级相等基线说明 + 后续依赖）；`docs/upgrade/PROGRESS.md` 加 Phase 8 / 8.1-8.4；memory 写两条决策（domain-harness-not-platform / bytewise-baseline-protection）。task-code-reviewer/code-review.md 之前已建（Step 0 时随任务包一起）。@ 2026-05-27
+
+## 验证说明（Step 4 §3）
+
+### 单元测试
+```bash
+cd game-agent-backend
+mvn test -Dtest='ContextRendererTest,EvaluationObservationTest,ObservationIssueTest,ControlSignalsTest,RunTraceTest'
+# 47 用例必须全过；ContextRendererTest 用例 #8（字节级相等）是核心基线
+```
+
+### 编译
+```bash
+cd game-agent-backend && mvn compile  # exit 0
+```
+
+### 手工冒烟
+1. `cd game-agent-backend && mvn spring-boot:run`
+2. POST `/api/game/v2/generate` body `{"userInput":"做个简单的贪吃蛇","options":{"model":"qwen3.6-max-preview"}}`
+3. 后端日志应能看到：`🔄 迭代 N/5` / `🤖 LLM 响应完成 (... 字符)` / 评估写 WorkingMemory
+4. 若评分 < 80，第二轮 system prompt 中应能看到 `<evaluation_observation>`、`<classified_issues>`、可能的 `<control_signals>` 与 `<run_trace_summary>` 块（不只是松散 markdown）
+5. 返回仍包含可运行 HTML（兼容性）
+
+### 观察字段
+- `AgentLoopResult.success(html, llmMessage, iterations, evalScore)` 语义未变
+- 后端日志仍是 emoji + 中文（不强制结构化日志）
+- `WorkingMemory.lastEvaluationObservation` / `runTrace` 是新增 ThreadLocal 状态，不落库
 
 ## 目标状态
 

@@ -354,3 +354,124 @@ Step 3: LLM 质量判断
 - **第 1-3 次修复**：增量修补——把问题列表和原 HTML 交给 LLM，要求只修改有问题的部分
 - **第 4 次修复（如果仍不达标）**：全量重写——把累积的问题和原始需求交给 LLM，要求从零重写
 - **理由**：增量修补 token 消耗低、改动可控；但如果多次修补仍有问题，说明底子有问题，不如重写
+
+---
+
+## 8. Agent Harness 轻量化改造（任务 260521-agent-harness）
+
+> 改造时间：2026-05-27 / 三个 Step 全部完成 / 47 用例覆盖。
+> 完整契约见 `docs/task/260521-agent-harness/`。
+
+把 AgentLoop 从「prompt + tools + WorkingMemory 一锅炖」拆成清晰分层：
+
+```
+┌─ WorkingMemory  ─── 事实状态（gameVersion / evalScore / openIssues / lastEvaluationObservation / runTrace / controlSignals）
+├─ ContextRenderer ── 把状态渲染为 <working_memory> XML 片段，注入 system prompt
+├─ EvaluationObservation ── 把 ProbeReport 高信号字段结构化（scoresByDimension / probeSummary / classified issues）
+└─ ControlSignals + RunTrace ─ 控制信号（scoreImproved/sameIssuesRepeated/criticalIssueExists/evaluationDegraded/shouldFullRewrite）+ 每轮 trace
+```
+
+### 8.1 各组件位置
+
+| 组件 | 类 | 职责 |
+|------|---|---|
+| 事实存储 | `agent/loop/WorkingMemory` | 字段 + getter/setter，**不**拼 prompt |
+| 上下文渲染 | `agent/loop/ContextRenderer` | `render(WorkingMemory)` → XML 片段；`memory == null` 不抛 NPE |
+| 评估观察 | `agent/evaluation/EvaluationObservation` | `fromProbeReport(report)` / `degraded(score, reason, issues)` 工厂；含 `degraded` 标志 |
+| 问题分类 | `agent/evaluation/ObservationIssue` | category（runnability/layout/interactivity/completeness/education/evaluation/general）+ severity（critical/major/minor）|
+| 运行轨迹 | `agent/loop/RunTrace + TraceEntry` | 每轮记 iteration/score 变化/issue 快照/responseLength；`recent(n)` 取最近 N 条 |
+| 控制信号 | `agent/loop/ControlSignals` | `compute(memory, trace)` 静态工厂；`shouldFullRewrite = fixCount>=3 && !scoreImproved && sameIssuesRepeated` |
+
+### 8.2 主循环数据流
+
+```
+AgentLoop.run()
+  → tryPreloadSkill              (Skill 关键词预加载)
+  → for i in 0..MAX_ITERATIONS:
+      memory.setIteration(i+1)
+      scoreBefore = memory.getEvalScore()
+      buildSystemPrompt(memory)   → contextRenderer.render(memory)
+      callLlmWithRetry(...)        (Spring AI Function Calling 自动多轮)
+      ┃   GameEvaluationTool      → EvaluationObservation.fromProbeReport / degraded
+      ┃                            → memory.setLastEvaluationObservation(obs)
+      recordTraceAndSignals(memory, i+1, scoreBefore, response)
+        → trace.append(TraceEntry)
+        → ControlSignals.compute(memory, trace) → memory.setControlSignals(...)
+      if score == 0 || score >= QUALITY_GATE_SCORE: return success
+```
+
+### 8.3 ContextRenderer 输出结构
+
+```xml
+<working_memory>
+  <game_state>
+    <version>...</version>
+    <last_eval_score>...</last_eval_score>
+    <open_issues>...</open_issues>
+    <iteration>... of 5</iteration>
+    <fix_count>...</fix_count>
+    <game_html><![CDATA[...]]></game_html>          (短 HTML)
+    或
+    <html_summary>...</html_summary>                (>8000 字符走摘要)
+    <html_length>...</html_length>
+    <suggested_skill>...</suggested_skill>          (可选)
+
+    <!-- Step 2 新增，仅 lastEvaluationObservation != null 时输出 -->
+    <evaluation_observation>
+      <degraded>true</degraded>                     (可选)
+      <total_score>.../100</total_score>
+      <scores>
+        <runnability>.../20</runnability>
+        ...
+      </scores>
+      <probe_summary>
+        <page_loaded>...</page_loaded>
+        <js_errors>...</js_errors>
+        <events>...</events>
+        <dom_mutations>...</dom_mutations>
+        <out_of_bounds>...</out_of_bounds>
+        <final_score>...</final_score>              (可选)
+      </probe_summary>
+      <classified_issues>
+        <issue category="..." severity="...">...</issue>
+      </classified_issues>
+    </evaluation_observation>
+
+    <!-- Step 3 新增，仅 hasAnyTrueSignal / trace 非空时输出 -->
+    <control_signals>
+      <score_improved>true</score_improved>          (按需)
+      <same_issues_repeated>true</same_issues_repeated>
+      <critical_issue_exists>true</critical_issue_exists>
+      <evaluation_degraded>true</evaluation_degraded>
+      <should_full_rewrite>true</should_full_rewrite>
+    </control_signals>
+    <run_trace_summary>
+      <round iteration="1" version="1">score 0→62 (+62)</round>
+      <round iteration="2" version="2">score 62→78 (+16)</round>
+      ...                                            (最近 3 条)
+    </run_trace_summary>
+  </game_state>
+</working_memory>
+```
+
+**字节级相等基线**：当 `lastEvaluationObservation == null && controlSignals 全 false && runTrace 空` 时，`ContextRenderer.render(memory) === memory.toContextXml()` 与 Step 1 之前的输出完全一致，由 `ContextRendererTest` 用例 #8 字节级断言保护。
+
+### 8.4 冻结的边界
+
+- `AgentLoop.run(String userInput, String modelKey)` 签名 / `AgentLoopResult.success/failure` 语义
+- `MAX_ITERATIONS = 5` / `QUALITY_GATE_SCORE = 80` / 异常路径"有 HTML 则返回当前版本"
+- `GameEvaluator.evaluate(String)` 签名 / 五维评分公式 / Playwright 交互步骤
+- `AgentPrompts.SYSTEM_PROMPT` / 任何 `@Tool` 方法签名
+- 任何 SKILL.md 内容
+- 前端 / API / pom.xml / schema.sql
+
+### 8.5 测试
+
+47 个 JUnit 用例覆盖（全部位于 `agent/loop/` 与 `agent/evaluation/`）：
+- `ContextRendererTest`（13 用例）：含字节级相等保护、null 安全、HTML 摘要分支
+- `EvaluationObservationTest`（9 用例）+ `ObservationIssueTest`（7 用例）：probe 映射、null 安全、降级标记
+- `ControlSignalsTest`（12 用例）+ `RunTraceTest`（6 用例）：信号计算、最近 N 条裁剪
+
+### 8.6 后续依赖
+
+任务 `260524-skill-distillation-evidence` 的证据层将消费 `EvaluationObservation` + `RunTrace` 作为持久化字段来源（运行时数据流不需要再发明，只需把它们写进数据库）。harness 是该任务的上游。
