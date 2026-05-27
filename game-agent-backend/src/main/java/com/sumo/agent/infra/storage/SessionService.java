@@ -1,7 +1,10 @@
 package com.sumo.agent.infra.storage;
 
+import com.sumo.agent.agent.evaluation.EvaluationObservation;
 import com.sumo.agent.agent.loop.AgentLoopResult;
 import com.sumo.agent.infra.db.GameRunEntity;
+import com.sumo.agent.infra.db.GameRunEvaluationEntity;
+import com.sumo.agent.infra.db.GameRunEvaluationRepository;
 import com.sumo.agent.infra.db.GameRunRepository;
 import com.sumo.agent.infra.db.MessageEntity;
 import com.sumo.agent.infra.db.MessageRepository;
@@ -31,13 +34,16 @@ public class SessionService {
     private final SessionRepository sessions;
     private final MessageRepository messages;
     private final GameRunRepository gameRuns;
+    private final GameRunEvaluationRepository evaluations;
 
     public SessionService(SessionRepository sessions,
                           MessageRepository messages,
-                          GameRunRepository gameRuns) {
+                          GameRunRepository gameRuns,
+                          GameRunEvaluationRepository evaluations) {
         this.sessions = sessions;
         this.messages = messages;
         this.gameRuns = gameRuns;
+        this.evaluations = evaluations;
     }
 
     /**
@@ -116,6 +122,48 @@ public class SessionService {
         sessions.incrementCounters(sessionId, 2, gameDelta);
 
         return new RecordResult(userMsgId, asstMsgId, gameRunId);
+    }
+
+    /**
+     * 写入一次 AgentLoop 运行的结构化复盘（无论成败都写一条）——任务 260524 Step 4。
+     * <p>
+     * 在 {@link #recordRun} 之后由 controller 调用。失败由 controller 层 catch，
+     * 这里只负责把 {@link AgentLoopResult} 投影到 {@link GameRunEvaluationEntity}。
+     *
+     * @param sessionId  必填——已 ensureSession 拿到的 session id
+     * @param gameRunId  可空——recordRun 返回的 gameRunId，失败/无 html 时为 null
+     * @param modelKey   本次请求选用的模型 key（可空）
+     * @param result     AgentLoop 结果（必须含 evidence 字段，由新工厂 successWithEvidence/failureWithEvidence 构造）
+     * @return 新写入的 evaluation id
+     */
+    public synchronized String recordEvidence(String sessionId,
+                                              String gameRunId,
+                                              String modelKey,
+                                              AgentLoopResult result) {
+        GameRunEvaluationEntity e = new GameRunEvaluationEntity();
+        e.setSessionId(sessionId);
+        e.setGameRunId(gameRunId);
+        e.setSkillName(result.activeSkillName());
+        e.setModelKey(modelKey);
+        e.setSuccess(result.success() ? 1 : 0);
+        e.setErrorType(result.errorType());
+        e.setTotalScore(result.evalScore());
+
+        EvaluationObservation obs = result.lastEvaluationObservation();
+        e.setDegraded(obs != null && obs.isDegraded() ? 1 : 0);
+        e.setDegradedReason(obs != null ? obs.getDegradedReason() : null);
+
+        e.setIterationCount(result.iterations());
+        if (result.runTrace() != null && result.runTrace().last() != null) {
+            e.setFinalIterationSummary(result.runTrace().last().getSummary());
+        }
+
+        e.setScoresJson(EvidenceMapper.toScoresJson(obs));
+        e.setProbeSummaryJson(EvidenceMapper.toProbeSummaryJson(obs));
+        e.setClassifiedIssuesJson(EvidenceMapper.toClassifiedIssuesJson(obs));
+        e.setIterTracesJson(EvidenceMapper.toIterTracesJson(result.runTrace()));
+
+        return evaluations.insert(e);
     }
 
     private static String buildTitle(String userInput) {

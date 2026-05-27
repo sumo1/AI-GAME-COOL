@@ -8,6 +8,7 @@ import com.sumo.agent.agent.tools.ToolContext;
 import com.sumo.agent.agent.tools.skill.SkillListTool;
 import com.sumo.agent.agent.tools.skill.SkillLoadTool;
 
+import com.sumo.agent.agent.tools.generation.ErrorClassifier;
 import com.sumo.agent.agent.tools.generation.GameSaveTool;
 import com.sumo.agent.agent.tools.evaluation.GameEvaluationTool;
 import lombok.extern.slf4j.Slf4j;
@@ -91,7 +92,9 @@ public class AgentLoop {
     public AgentLoopResult run(String userInput, String modelKey) {
         ChatModel chatModel = chatModelRegistry.get(modelKey);
         if (chatModel == null) {
-            return AgentLoopResult.failure("未配置可用的 ChatModel", 0);
+            // 模型不可用 → 走 evidence 路径但 trace/observation 都为 null
+            return AgentLoopResult.failureWithEvidence(
+                    "未配置可用的 ChatModel", 0, "配置缺失", null, null, null);
         }
 
         WorkingMemory memory = new WorkingMemory();
@@ -125,11 +128,14 @@ public class AgentLoop {
                     // 质量门禁检查
                     if (memory.getEvalScore() == 0 || memory.getEvalScore() >= QUALITY_GATE_SCORE) {
                         log.info("✅ AgentLoop 完成, 迭代 {} 次", i + 1);
-                        return AgentLoopResult.success(
+                        return AgentLoopResult.successWithEvidence(
                                 memory.getGameHtml(),
                                 response,
                                 i + 1,
-                                memory.getEvalScore()
+                                memory.getEvalScore(),
+                                memory.getLastEvaluationObservation(),
+                                memory.getRunTrace(),
+                                resolveActiveSkillName(memory)
                         );
                     }
 
@@ -137,28 +143,67 @@ public class AgentLoop {
 
                 } catch (Exception e) {
                     log.error("❌ 迭代 {} 出错: {}", i + 1, e.getMessage(), e);
+                    String errorType = ErrorClassifier.classify(e);
                     if (memory.getGameHtml() != null) {
-                        return AgentLoopResult.success(
+                        // 已有 html → 仍当成功返回，但带上 evidence
+                        return AgentLoopResult.successWithEvidence(
                                 memory.getGameHtml(),
                                 "生成过程遇到问题，返回当前版本: " + e.getMessage(),
-                                i + 1, memory.getEvalScore()
+                                i + 1,
+                                memory.getEvalScore(),
+                                memory.getLastEvaluationObservation(),
+                                memory.getRunTrace(),
+                                resolveActiveSkillName(memory)
                         );
                     }
-                    return AgentLoopResult.failure("AgentLoop 执行失败: " + e.getMessage(), i + 1);
+                    return AgentLoopResult.failureWithEvidence(
+                            "AgentLoop 执行失败: " + e.getMessage(),
+                            i + 1,
+                            errorType,
+                            memory.getLastEvaluationObservation(),
+                            memory.getRunTrace(),
+                            resolveActiveSkillName(memory)
+                    );
                 }
             }
 
             log.warn("⚠️ 达到最大迭代次数 {}", MAX_ITERATIONS);
             if (memory.getGameHtml() != null) {
-                return AgentLoopResult.success(memory.getGameHtml(), "达到最大迭代次数，返回当前最佳版本",
-                        MAX_ITERATIONS, memory.getEvalScore());
+                return AgentLoopResult.successWithEvidence(
+                        memory.getGameHtml(),
+                        "达到最大迭代次数，返回当前最佳版本",
+                        MAX_ITERATIONS,
+                        memory.getEvalScore(),
+                        memory.getLastEvaluationObservation(),
+                        memory.getRunTrace(),
+                        resolveActiveSkillName(memory)
+                );
             }
-            return AgentLoopResult.failure("达到最大迭代次数仍未生成游戏", MAX_ITERATIONS);
+            return AgentLoopResult.failureWithEvidence(
+                    "达到最大迭代次数仍未生成游戏",
+                    MAX_ITERATIONS,
+                    "迭代用尽未达标",
+                    memory.getLastEvaluationObservation(),
+                    memory.getRunTrace(),
+                    resolveActiveSkillName(memory)
+            );
 
         } finally {
             // 清理 ThreadLocal，防止线程池复用时状态泄漏
             toolContext.clear();
         }
+    }
+
+    /**
+     * 取当前 active skill 名称：优先 toolContext 内的（LLM 通过 loadSkill 显式激活），
+     * 退而求其次取 memory.preloadedSkill（关键词快速路径预加载）。
+     */
+    private String resolveActiveSkillName(WorkingMemory memory) {
+        SkillDefinition active = toolContext.getActiveSkill();
+        if (active != null && active.getName() != null) {
+            return active.getName();
+        }
+        return memory.getPreloadedSkill();
     }
 
     /**

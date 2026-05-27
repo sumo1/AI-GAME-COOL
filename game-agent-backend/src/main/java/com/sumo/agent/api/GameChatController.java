@@ -169,10 +169,20 @@ public class GameChatController {
             AgentLoopResult result = agentLoop.run(request.getUserInput(), finalModelKey);
 
             // 3. 写 messages + game_run（失败也不影响响应）
+            String gameRunId = null;
             try {
-                sessionService.recordRun(finalSessionId, request.getUserInput(), result, finalModelKey);
+                SessionService.RecordResult recordResult =
+                        sessionService.recordRun(finalSessionId, request.getUserInput(), result, finalModelKey);
+                gameRunId = recordResult != null ? recordResult.gameRunId() : null;
             } catch (Exception e) {
                 log.error("写入会话失败（recordRun, sessionId={}）: {}", finalSessionId, e.getMessage(), e);
+            }
+
+            // 4. 写 evidence（任务 260524 Step 4）；失败同样不影响响应
+            try {
+                sessionService.recordEvidence(finalSessionId, gameRunId, finalModelKey, result);
+            } catch (Exception e) {
+                log.error("写入 evidence 失败（不影响响应, sessionId={}）: {}", finalSessionId, e.getMessage(), e);
             }
 
             GameResponse response = new GameResponse();
