@@ -29,6 +29,8 @@ public class WorkingMemory {
     private String preloadedSkill;
     private final List<String> openIssues = new ArrayList<>();
     private EvaluationObservation lastEvaluationObservation;
+    private RunTrace runTrace = new RunTrace();
+    private ControlSignals controlSignals = new ControlSignals();
 
     public void incrementGameVersion() {
         gameVersion++;
@@ -83,5 +85,15 @@ public class WorkingMemory {
     public EvaluationObservation getLastEvaluationObservation() { return lastEvaluationObservation; }
     public void setLastEvaluationObservation(EvaluationObservation lastEvaluationObservation) {
         this.lastEvaluationObservation = lastEvaluationObservation;
+    }
+
+    public RunTrace getRunTrace() { return runTrace; }
+    public void setRunTrace(RunTrace runTrace) {
+        this.runTrace = runTrace != null ? runTrace : new RunTrace();
+    }
+
+    public ControlSignals getControlSignals() { return controlSignals; }
+    public void setControlSignals(ControlSignals controlSignals) {
+        this.controlSignals = controlSignals != null ? controlSignals : new ControlSignals();
     }
 }

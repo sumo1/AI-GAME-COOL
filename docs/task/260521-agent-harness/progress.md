@@ -57,7 +57,7 @@
 
 1. [x] **Step 1：状态与上下文拆分** — 抽 `ContextRenderer.render(WorkingMemory)`，`WorkingMemory.toContextXml()` 委托给它；`AgentLoop.buildSystemPrompt` 改用 ContextRenderer；ContextRendererTest 8 用例全过（含字节级相等 `toContextXml() == render()`）。@ 2026-05-27
 2. [x] **Step 2：评估观察结构化** — 新建 `EvaluationObservation` + `ObservationIssue`；`WorkingMemory.lastEvaluationObservation` 字段；`GameEvaluationTool` 成功 + 降级路径都写入；`ContextRenderer` 末尾追加 `<evaluation_observation>` 块（obs=null 时不输出，保字节级相等用例）。共 26 用例全过（ContextRenderer 10 / EvalObs 9 / IssueType 7）。@ 2026-05-27
-3. [ ] **Step 3：控制信号与轻量轨迹** — 记录 run trace，并加入无进展、重复问题、降级评估等控制信号
+3. [x] **Step 3：控制信号与轻量轨迹** — 新建 RunTrace + TraceEntry + ControlSignals；WorkingMemory 加 runTrace/controlSignals 字段（默认非 null）；AgentLoop 每轮在质量门禁前调 recordTraceAndSignals；ContextRenderer 末尾追加 `<control_signals>` 与 `<run_trace_summary>`（默认状态全空时不输出，保字节级相等基线）；MAX_ITERATIONS=5 / QUALITY_GATE_SCORE=80 不动；trace 仅内存驻留不落库。47 用例全过（ContextRenderer 13 / ControlSignals 12 / RunTrace 6 / EvalObs 9 / Issue 7）。@ 2026-05-27
 4. [ ] **Step 4：文档与验收基线** — 同步架构文档、补充回归验证，确保后续任务能按契约执行
 
 ## 目标状态

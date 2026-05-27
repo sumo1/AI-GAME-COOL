@@ -76,9 +76,59 @@ public class ContextRenderer {
             renderEvaluationObservation(sb, obs);
         }
 
+        // 控制信号（Step 3）：只在至少有一个信号为 true 时输出，
+        // 默认全 false 状态保持与 Step 1/2 字节级相等。
+        ControlSignals signals = memory != null ? memory.getControlSignals() : null;
+        if (signals != null && hasAnyTrueSignal(signals)) {
+            renderControlSignals(sb, signals);
+        }
+
+        // 轻量轨迹（Step 3）：trace 非空才输出，最多 3 条最近迭代摘要。
+        RunTrace trace = memory != null ? memory.getRunTrace() : null;
+        if (trace != null && !trace.getEntries().isEmpty()) {
+            renderRunTraceSummary(sb, trace);
+        }
+
         sb.append("  </game_state>\n");
         sb.append("</working_memory>");
         return sb.toString();
+    }
+
+    /**
+     * 至少一个信号为 true 才需要渲染 control_signals 块，
+     * 借此保持空状态下与 Step 1/2 输出字节级相等。
+     */
+    private boolean hasAnyTrueSignal(ControlSignals s) {
+        return s.isScoreImproved()
+                || s.isSameIssuesRepeated()
+                || s.isCriticalIssueExists()
+                || s.isEvaluationDegraded()
+                || s.isShouldFullRewrite();
+    }
+
+    private void renderControlSignals(StringBuilder sb, ControlSignals signals) {
+        sb.append("    <control_signals>\n");
+        if (signals.isScoreImproved())       sb.append("      <score_improved>true</score_improved>\n");
+        if (signals.isSameIssuesRepeated())  sb.append("      <same_issues_repeated>true</same_issues_repeated>\n");
+        if (signals.isCriticalIssueExists()) sb.append("      <critical_issue_exists>true</critical_issue_exists>\n");
+        if (signals.isEvaluationDegraded())  sb.append("      <evaluation_degraded>true</evaluation_degraded>\n");
+        if (signals.isShouldFullRewrite())   sb.append("      <should_full_rewrite>true</should_full_rewrite>\n");
+        sb.append("    </control_signals>\n");
+    }
+
+    private void renderRunTraceSummary(StringBuilder sb, RunTrace trace) {
+        List<TraceEntry> recent = trace.recent(3);
+        if (recent.isEmpty()) {
+            return;
+        }
+        sb.append("    <run_trace_summary>\n");
+        for (TraceEntry te : recent) {
+            sb.append("      <round iteration=\"").append(te.getIteration())
+              .append("\" version=\"").append(te.getGameVersion()).append("\">")
+              .append(te.getSummary() != null ? te.getSummary() : "")
+              .append("</round>\n");
+        }
+        sb.append("    </run_trace_summary>\n");
     }
 
     /**

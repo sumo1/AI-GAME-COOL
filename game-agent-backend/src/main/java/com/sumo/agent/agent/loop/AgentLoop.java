@@ -1,6 +1,7 @@
 package com.sumo.agent.agent.loop;
 
 import com.sumo.agent.infra.model.ChatModelRegistry;
+import com.sumo.agent.agent.evaluation.EvaluationObservation;
 import com.sumo.agent.agent.skill.SkillDefinition;
 import com.sumo.agent.agent.skill.SkillLoader;
 import com.sumo.agent.agent.tools.ToolContext;
@@ -16,6 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.net.SocketTimeoutException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -102,6 +104,7 @@ public class AgentLoop {
 
             for (int i = 0; i < MAX_ITERATIONS; i++) {
                 memory.setIteration(i + 1);
+                int scoreBefore = memory.getEvalScore();
                 log.info("🔄 迭代 {}/{}", i + 1, MAX_ITERATIONS);
 
                 try {
@@ -109,6 +112,10 @@ public class AgentLoop {
                     String response = callLlmWithRetry(chatModel, systemPrompt, buildUserPrompt(userInput, memory));
 
                     log.info("🤖 LLM 响应完成 ({} 字符)", response != null ? response.length() : 0);
+
+                    // 记录本轮轨迹 + 重算控制信号（Step 3）
+                    // 必须在质量门禁判断之前完成，使达标退出时也保留当轮 trace。
+                    recordTraceAndSignals(memory, i + 1, scoreBefore, response);
 
                     // 质量门禁检查
                     if (memory.getEvalScore() == 0 || memory.getEvalScore() >= QUALITY_GATE_SCORE) {
@@ -224,6 +231,42 @@ public class AgentLoop {
                 }
             }
         }
+    }
+
+    /**
+     * 记录本轮 TraceEntry 并重算 ControlSignals（Step 3）。
+     * <p>
+     * 仅在内存中追加，不持久化；不改变迭代/门禁逻辑。
+     */
+    private void recordTraceAndSignals(WorkingMemory memory, int iteration, int scoreBefore, String response) {
+        int scoreAfter = memory.getEvalScore();
+        EvaluationObservation obs = memory.getLastEvaluationObservation();
+        boolean degraded = obs != null && obs.isDegraded();
+        List<String> snapshot = new ArrayList<>(memory.getOpenIssues());
+        int delta = scoreAfter - scoreBefore;
+
+        String summary;
+        if (delta > 0) {
+            summary = String.format("score %d→%d (+%d)", scoreBefore, scoreAfter, delta);
+        } else if (delta < 0) {
+            summary = String.format("score %d→%d (%d)", scoreBefore, scoreAfter, delta);
+        } else {
+            summary = String.format("score unchanged at %d, %d issues", scoreAfter, snapshot.size());
+        }
+
+        TraceEntry entry = new TraceEntry();
+        entry.setIteration(iteration);
+        entry.setScoreBefore(scoreBefore);
+        entry.setScoreAfter(scoreAfter);
+        entry.setIssueCount(snapshot.size());
+        entry.setResponseLength(response != null ? response.length() : 0);
+        entry.setGameVersion(memory.getGameVersion());
+        entry.setSummary(summary);
+        entry.setEvaluationDegraded(degraded);
+        entry.setIssuesSnapshot(snapshot);
+
+        memory.getRunTrace().append(entry);
+        memory.setControlSignals(ControlSignals.compute(memory, memory.getRunTrace()));
     }
 
     private String buildSystemPrompt(WorkingMemory memory) {

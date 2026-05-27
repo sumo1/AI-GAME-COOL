@@ -211,4 +211,80 @@ class ContextRendererTest {
                 "降级原因应输出");
         assertTrue(output.contains("<total_score>50/100</total_score>"));
     }
+
+    // 11. (Step 3) 默认 WorkingMemory 不输出 <control_signals> / <run_trace_summary>
+    //     —— 维持与 Step 1/2 字节级相等基线。
+    @Test
+    void render_defaultMemory_omitsControlSignalsAndTrace() {
+        WorkingMemory memory = new WorkingMemory();
+
+        String output = renderer.render(memory);
+
+        assertFalse(output.contains("<control_signals>"),
+                "全 false 信号不应输出 <control_signals>");
+        assertFalse(output.contains("<run_trace_summary>"),
+                "空 trace 不应输出 <run_trace_summary>");
+    }
+
+    // 12. (Step 3) 设置了 trace + 信号后，render 输出含两块
+    @Test
+    void render_withTraceAndSignals_outputsBothBlocks() {
+        WorkingMemory memory = new WorkingMemory();
+
+        // 一条 trace
+        TraceEntry entry = new TraceEntry();
+        entry.setIteration(2);
+        entry.setScoreBefore(60);
+        entry.setScoreAfter(78);
+        entry.setIssueCount(1);
+        entry.setResponseLength(1234);
+        entry.setGameVersion(2);
+        entry.setSummary("score 60→78 (+18)");
+        memory.getRunTrace().append(entry);
+
+        // 至少一个信号为 true
+        ControlSignals signals = new ControlSignals();
+        signals.setScoreImproved(true);
+        signals.setEvaluationDegraded(true);
+        memory.setControlSignals(signals);
+
+        String output = renderer.render(memory);
+
+        assertTrue(output.contains("<control_signals>"), "应输出 <control_signals>");
+        assertTrue(output.contains("<score_improved>true</score_improved>"));
+        assertTrue(output.contains("<evaluation_degraded>true</evaluation_degraded>"));
+        // 没设的信号不应出现
+        assertFalse(output.contains("<same_issues_repeated>"),
+                "未置位的信号不应渲染");
+        assertFalse(output.contains("<critical_issue_exists>"),
+                "未置位的信号不应渲染");
+        assertFalse(output.contains("<should_full_rewrite>"),
+                "未置位的信号不应渲染");
+
+        assertTrue(output.contains("<run_trace_summary>"), "应输出 <run_trace_summary>");
+        assertTrue(output.contains("iteration=\"2\""), "应含本轮 iteration 属性");
+        assertTrue(output.contains("version=\"2\""), "应含 version 属性");
+        assertTrue(output.contains("score 60→78 (+18)"), "应含本轮 summary");
+    }
+
+    // 13. (Step 3) 超过 3 条 trace 时仅输出最近 3 条
+    @Test
+    void render_traceMoreThanThreeRounds_keepsOnlyLastThree() {
+        WorkingMemory memory = new WorkingMemory();
+        for (int i = 1; i <= 5; i++) {
+            TraceEntry e = new TraceEntry();
+            e.setIteration(i);
+            e.setGameVersion(i);
+            e.setSummary("round-" + i);
+            memory.getRunTrace().append(e);
+        }
+        // 信号不需要为 true，只测 trace 截断
+        String output = renderer.render(memory);
+
+        assertTrue(output.contains("round-3"), "最近 3 轮：第 3 轮应在");
+        assertTrue(output.contains("round-4"), "最近 3 轮：第 4 轮应在");
+        assertTrue(output.contains("round-5"), "最近 3 轮：第 5 轮应在");
+        assertFalse(output.contains("round-1"), "第 1 轮不应在");
+        assertFalse(output.contains("round-2"), "第 2 轮不应在");
+    }
 }
