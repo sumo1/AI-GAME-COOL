@@ -27,7 +27,7 @@
 ## 步骤
 
 1. [x] **Step 1：抽 shared/playability/ 共享库** — `playability-probe.js`（138 行，window.__PLAYABILITY__ 暴露 collect / getErrors / computeWhitelist / hasNewKeyword + 防重复注入 + JS 错误 hook）+ `playability-driver.js`（96 行，window.__PLAYABILITY_DRIVER__ 暴露 findStartButton / clickByJS）+ `README.md`（接入契约 + Java/Python 示例 + 注入时机说明）。`node --check` 双绿；行为冒烟 10/10 验收（API keys / collect 返回 5 字段 / computeWhitelist null 安全 / hasNewKeyword 关键词识别 / 防重复注入 / 空 DOM null 不抛）。@ 2026-05-27
-2. [ ] **Step 2：GameEvaluator 改造** — 用 `page.addInitScript` 注入共享 probe；`simulateInteractions` 增加键盘探索分支调用共享 driver
+2. [x] **Step 2：GameEvaluator 改造** — `init()` 改读 `shared/playability/*.js`（findProjectRoot 向上找项目根，不依赖 classpath）；`runInBrowser` 用 `context.addInitScript(probeJs/driverJs)` 在 navigate 前注入；`harvestProbe` 收割 errors + outOfBounds + finalState（用 collect().numeric 取 score）；`tryClickStart` 用 `__PLAYABILITY_DRIVER__.findStartButton` + 坐标 click + JS click 兜底；老 `injectProbe` `@Deprecated` 退化为 no-op；`probeScript` 字段 `@Deprecated`。ProbeReport 字段 / 五维评分公式 / @Tool 签名全部不动。memory `2026-05-27-evaluator-score-regression.md` 记录 events/stateChanges 暂空导致的 evalScore 系统性下降 20-40 分预期 + 退路（QUALITY_GATE_SCORE=50 临时调降）。@ 2026-05-27 / mvn test 98/98 全过 0 退化 / 启动日志含「Playability shared JS 加载完成 (4312 + 2707 chars)」
 3. [ ] **Step 3：oracle 改造** — `oracle-driver.py` 把内联 JS 替换为读 shared/playability/ 文件 + 注入
 4. [ ] **Step 4：交叉验证** — 4 个 fixture（snake-v0 / sample-r1-s2 / keytest / dead-page）跑两个评估器，方向一致即过
 5. [ ] **Step 5：文档收尾 + push** — README + conventions/testing 段落
