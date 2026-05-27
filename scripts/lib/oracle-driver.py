@@ -10,6 +10,10 @@
 #   ORACLE_RESULT_JSON     — result.json 输出路径
 #
 # 输出：写 result.json，包含 baseline / final / auto_changing_paths / keys_pressed / errors
+#
+# 任务 260522-evaluator-oracle-shared-core Step 3：
+# 信号采集 / 错误 hook / 找开始按钮 / 关键词识别全部委托 shared/playability/。
+# 老的 COLLECT_JS / FIND_START_BUTTON_JS / INSTALL_ERROR_HOOK_JS 已删，统一走 window.__PLAYABILITY__ / __PLAYABILITY_DRIVER__。
 
 import os
 import json
@@ -21,118 +25,16 @@ BASELINE_PNG = os.environ["ORACLE_BASELINE_PNG"]
 AFTER_PNG = os.environ["ORACLE_AFTER_PNG"]
 RESULT_JSON = os.environ["ORACLE_RESULT_JSON"]
 
+# 加载共享 JS（项目根的相对路径：scripts/lib/ → ../../shared/playability/）
+SHARED_DIR = os.path.abspath(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "shared", "playability")
+)
+with open(os.path.join(SHARED_DIR, "playability-probe.js"), encoding="utf-8") as f:
+    PROBE_JS = f.read()
+with open(os.path.join(SHARED_DIR, "playability-driver.js"), encoding="utf-8") as f:
+    DRIVER_JS = f.read()
+
 errors = []
-
-# JS：收集信号 + 安装错误捕获 + 找开始按钮
-COLLECT_JS = r"""
-(() => {
-  function simpleHash(s) {
-    let h = 5381;
-    for (let i = 0; i < s.length; i++) { h = ((h << 5) + h + s.charCodeAt(i)) | 0; }
-    return String(h);
-  }
-  function cssPath(el) {
-    if (!el || el.nodeType !== 1) return '';
-    const parts = [];
-    let cur = el;
-    let depth = 0;
-    while (cur && cur.nodeType === 1 && depth < 6) {
-      let part = cur.tagName.toLowerCase();
-      if (cur.id) { part += '#' + cur.id; parts.unshift(part); break; }
-      if (cur.className && typeof cur.className === 'string') {
-        const cls = cur.className.trim().split(/\s+/).slice(0, 2).join('.');
-        if (cls) part += '.' + cls;
-      }
-      const parent = cur.parentNode;
-      if (parent && parent.children) {
-        const sibs = [...parent.children].filter(s => s.tagName === cur.tagName);
-        if (sibs.length > 1) {
-          const idx = sibs.indexOf(cur) + 1;
-          part += ':nth-of-type(' + idx + ')';
-        }
-      }
-      parts.unshift(part);
-      cur = cur.parentNode;
-      depth++;
-    }
-    return parts.join('>');
-  }
-
-  const canvases = [...document.querySelectorAll('canvas')].map((c, i) => {
-    let hash = '';
-    try { hash = c.toDataURL().slice(-40); } catch (e) { hash = 'ERR:' + (e && e.message || 'unknown'); }
-    return { idx: i, hash };
-  });
-
-  const numeric = [];
-  const all = document.querySelectorAll('*');
-  for (let i = 0; i < all.length && numeric.length < 200; i++) {
-    const el = all[i];
-    if (el.children && el.children.length > 0) continue;
-    const t = (el.textContent || '').trim();
-    if (t.length > 0 && t.length < 8 && /^-?\d+\.?\d*$/.test(t)) {
-      numeric.push({ path: cssPath(el), val: t });
-    }
-  }
-
-  const bodyText = (document.body && document.body.innerText) || '';
-  return JSON.stringify({
-    canvases: canvases,
-    numeric: numeric,
-    bodyTextLen: bodyText.length,
-    bodyTextHash: simpleHash(bodyText.slice(0, 5000)),
-    bodyText: bodyText.slice(0, 1500)
-  });
-})()
-"""
-
-INSTALL_ERROR_HOOK_JS = r"""
-(() => {
-  if (window.__oracleErrors) return 'already';
-  window.__oracleErrors = [];
-  window.addEventListener('error', (e) => {
-    try { window.__oracleErrors.push({ type: 'error', msg: String(e.message || e), src: String(e.filename || '') }); } catch (_) {}
-  });
-  window.addEventListener('unhandledrejection', (e) => {
-    try { window.__oracleErrors.push({ type: 'unhandledrejection', msg: String((e.reason && (e.reason.message || e.reason)) || '') }); } catch (_) {}
-  });
-  return 'installed';
-})()
-"""
-
-READ_ERRORS_JS = "JSON.stringify(window.__oracleErrors || [])"
-
-FIND_START_BUTTON_JS = r"""
-(() => {
-  const candidates = ['开始', '开始游戏', 'Start', 'Play', 'GO', '点击开始', '开 始', 'START', 'PLAY',
-                       '再来一局', '再来一次', '再玩一次', 'Retry', 'Restart', '重新开始', 'Replay'];
-  const tags = ['button', 'a', '[role=button]', 'div', 'span'];
-  const all = [...document.querySelectorAll(tags.join(','))];
-  for (const txt of candidates) {
-    const el = all.find(e => ((e.textContent || '').trim() === txt));
-    if (el) {
-      const r = el.getBoundingClientRect();
-      if (r.width > 0 && r.height > 0) {
-        return JSON.stringify({ x: r.x + r.width/2, y: r.y + r.height/2, txt: txt });
-      }
-    }
-  }
-  // 兜底：内含关键词的可点元素
-  for (const txt of candidates) {
-    const el = all.find(e => {
-      const t = (e.textContent || '').trim();
-      return t.length < 30 && t.includes(txt);
-    });
-    if (el) {
-      const r = el.getBoundingClientRect();
-      if (r.width > 0 && r.height > 0) {
-        return JSON.stringify({ x: r.x + r.width/2, y: r.y + r.height/2, txt: txt });
-      }
-    }
-  }
-  return null;
-})()
-"""
 
 
 def parse_signals(raw):
@@ -153,6 +55,14 @@ def safe_js(expr, label):
         return None
 
 
+def collect_signals(label):
+    """调用共享 probe.collect()，返回解析后的 dict 或 None。"""
+    raw = safe_js("JSON.stringify(window.__PLAYABILITY__ ? window.__PLAYABILITY__.collect() : null)", label)
+    if not raw or raw == "null":
+        return None
+    return parse_signals(raw)
+
+
 def main():
     try:
         # 1) 打开 HTML（用 file://）
@@ -160,71 +70,55 @@ def main():
         new_tab(url)  # noqa: F821
         wait_for_load(timeout=15)  # noqa: F821
 
-        # 安装错误捕获钩子（在任何业务 JS 跑之前注入）
-        safe_js(INSTALL_ERROR_HOOK_JS, "install_error_hook")
+        # 2) 注入共享 probe + driver（IIFE 内部防重复，多次调用安全）
+        safe_js(PROBE_JS, "inject_probe")
+        safe_js(DRIVER_JS, "inject_driver")
 
-        # 2) baseline 截图
+        # 3) baseline 截图
         try:
             capture_screenshot(BASELINE_PNG)  # noqa: F821
         except Exception as e:
             errors.append({"type": "screenshot", "label": "baseline", "msg": str(e)})
 
-        # 3) Pre-flight：找开始按钮并点（坐标 click + JS click() 兜底，确保 overlay 不挡也能触发）
-        start_btn_raw = safe_js(FIND_START_BUTTON_JS, "find_start_button")
+        # 4) Pre-flight：找开始按钮并点（坐标 click + JS click() 兜底）
+        start_btn_raw = safe_js(
+            "(() => { const b = window.__PLAYABILITY_DRIVER__ ? window.__PLAYABILITY_DRIVER__.findStartButton() : null; return b ? JSON.stringify(b) : null; })()",
+            "find_start_button"
+        )
         start_btn_clicked = None
-        if start_btn_raw:
+        if start_btn_raw and start_btn_raw != "null":
             try:
                 btn = json.loads(start_btn_raw)
                 click_at_xy(btn["x"], btn["y"])  # noqa: F821
-                # JS 兜底：直接 element.click()，绕过 overlay / z-index 问题
-                safe_js(r"""
-                  (() => {
-                    const candidates = ['开始', '开始游戏', 'Start', 'Play', 'GO', '点击开始', '开 始',
-                                         'START', 'PLAY', '再来一局', '再来一次', '再玩一次',
-                                         'Retry', 'Restart', '重新开始', 'Replay'];
-                    const all = [...document.querySelectorAll('button, a, [role=button], div, span')];
-                    for (const txt of candidates) {
-                      const el = all.find(e => ((e.textContent || '').trim() === txt) ||
-                                                 ((e.textContent || '').trim().includes(txt) &&
-                                                  (e.textContent || '').trim().length < 30));
-                      if (el && el.click) { el.click(); return 'fallback-clicked: ' + txt; }
-                    }
-                    return 'no-fallback-needed';
-                  })()
-                """, "click_start_fallback")
+                # JS 兜底
+                safe_js("window.__PLAYABILITY_DRIVER__.clickByJS()", "click_start_fallback")
                 start_btn_clicked = btn
                 wait(0.5)  # noqa: F821
             except Exception as e:
                 errors.append({"type": "click_start", "msg": str(e)})
 
-        # 4) 自然变化采样：1 秒内不发任何按键
-        nat_baseline_raw = safe_js(COLLECT_JS, "nat_baseline")
+        # 5) 自然变化采样：1 秒内不发任何按键
+        nat_baseline = collect_signals("nat_baseline")
         wait(1.0)  # noqa: F821
-        nat_after_raw = safe_js(COLLECT_JS, "nat_after")
-        nat_baseline = parse_signals(nat_baseline_raw)
-        nat_after = parse_signals(nat_after_raw)
+        nat_after = collect_signals("nat_after")
 
         auto_changing_paths = []
         auto_changing_canvases = []
         if nat_baseline and nat_after:
-            # numeric 对比
-            base_map = {n["path"]: n["val"] for n in nat_baseline.get("numeric", [])}
-            after_map = {n["path"]: n["val"] for n in nat_after.get("numeric", [])}
-            for path, val in after_map.items():
-                if base_map.get(path) != val:
-                    auto_changing_paths.append(path)
-            # canvas 对比
-            base_cnv = {c["idx"]: c["hash"] for c in nat_baseline.get("canvases", [])}
-            after_cnv = {c["idx"]: c["hash"] for c in nat_after.get("canvases", [])}
-            for idx, h in after_cnv.items():
-                if base_cnv.get(idx) != h:
-                    auto_changing_canvases.append(idx)
+            # 复用共享 probe 的 computeWhitelist
+            wl_raw = safe_js(
+                f"JSON.stringify(window.__PLAYABILITY__.computeWhitelist({json.dumps(nat_baseline)}, {json.dumps(nat_after)}))",
+                "whitelist"
+            )
+            wl = parse_signals(wl_raw)
+            if wl:
+                auto_changing_paths = wl.get("autoPaths", [])
+                auto_changing_canvases = wl.get("autoCanvases", [])
 
-        # 5) 真正 baseline（以自然变化采样后的状态为准）
-        baseline_raw = safe_js(COLLECT_JS, "baseline")
-        baseline = parse_signals(baseline_raw)
+        # 6) 真正 baseline（以自然变化采样后的状态为准）
+        baseline = collect_signals("baseline")
 
-        # 6) 驱动：先 18 次混合按键（探索方向响应），再 30 次单方向（确保蛇横穿棋盘撞墙 → 触发 game over → bodyText 必变）
+        # 7) 驱动：18 次探索按键 + 30 次 ArrowRight（确保蛇横穿棋盘撞墙触发 game over）
         explore = ['ArrowRight', 'ArrowDown', 'd', 's', 'ArrowLeft', 'ArrowUp', 'a', 'w'] * 3  # 24 个
         keys = explore[:18] + ['ArrowRight'] * 30  # 48 个，约 9.6 秒
         for k in keys:
@@ -234,17 +128,16 @@ def main():
             except Exception as e:
                 errors.append({"type": "press_key", "key": k, "msg": str(e)})
 
-        # 7) Final
+        # 8) Final
         try:
             capture_screenshot(AFTER_PNG)  # noqa: F821
         except Exception as e:
             errors.append({"type": "screenshot", "label": "after", "msg": str(e)})
 
-        final_raw = safe_js(COLLECT_JS, "final")
-        final = parse_signals(final_raw)
+        final = collect_signals("final")
 
-        # 收集 JS 运行期错误
-        js_errors_raw = safe_js(READ_ERRORS_JS, "read_errors")
+        # 9) 收集 JS 运行期错误（共享 probe 已 hook）
+        js_errors_raw = safe_js("JSON.stringify(window.__PLAYABILITY__ ? window.__PLAYABILITY__.getErrors() : [])", "read_errors")
         js_errors = []
         if js_errors_raw:
             try:
