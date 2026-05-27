@@ -76,6 +76,9 @@ public class AgentLoop {
     @Autowired
     private SkillLoader skillLoader;
 
+    /** 上下文渲染器，纯逻辑组件，private final 实例即可，不走 Spring 注入 */
+    private final ContextRenderer contextRenderer = new ContextRenderer();
+
     /**
      * 执行 Agent Loop
      *
@@ -224,7 +227,7 @@ public class AgentLoop {
     }
 
     private String buildSystemPrompt(WorkingMemory memory) {
-        return AgentPrompts.SYSTEM_PROMPT + "\n\n" + memory.toContextXml();
+        return AgentPrompts.SYSTEM_PROMPT + "\n\n" + contextRenderer.render(memory);
     }
 
     private String buildUserPrompt(String userInput, WorkingMemory memory) {

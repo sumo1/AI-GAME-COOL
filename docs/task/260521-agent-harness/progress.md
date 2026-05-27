@@ -55,7 +55,7 @@
 
 ## 步骤
 
-1. [ ] **Step 1：状态与上下文拆分** — 引入 harness 状态结构和 `ContextRenderer`，保持 `WorkingMemory.toContextXml()` 兼容
+1. [x] **Step 1：状态与上下文拆分** — 抽 `ContextRenderer.render(WorkingMemory)`，`WorkingMemory.toContextXml()` 委托给它；`AgentLoop.buildSystemPrompt` 改用 ContextRenderer；ContextRendererTest 8 用例全过（含字节级相等 `toContextXml() == render()`）。@ 2026-05-27
 2. [ ] **Step 2：评估观察结构化** — 将 `ProbeReport` 关键信息沉淀为可回灌的 `EvaluationObservation`
 3. [ ] **Step 3：控制信号与轻量轨迹** — 记录 run trace，并加入无进展、重复问题、降级评估等控制信号
 4. [ ] **Step 4：文档与验收基线** — 同步架构文档、补充回归验证，确保后续任务能按契约执行
