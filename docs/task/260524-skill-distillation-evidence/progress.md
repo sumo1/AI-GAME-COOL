@@ -43,12 +43,14 @@
 
 ## 步骤
 
-1. [ ] **Step 1：Skill 选择链路优化** — 把 Skill meta 作为 `Skill Index` 由 Java 侧注入 prompt，避免 LLM 忘记调用 `listSkills`
-2. [ ] **Step 2：证据清点与字段契约** — 对齐当前 `sessions / messages / game_runs`、`ToolContext.activeSkill`、`WorkingMemory`、`ProbeReport`，明确哪些事实必须落库
-3. [ ] **Step 3：持久化设计** — 决定扩展 `game_runs` 还是新增 `game_run_evaluations / game_run_iterations / skill_distillation_candidates`，保证兼容现有查询
-4. [ ] **Step 4：运行时写入** — 在不改变 `AgentLoop.run()` 和 Tool 签名的前提下，把 active skill、评测摘要、失败结果、迭代 trace 写入证据层
-5. [ ] **Step 5：候选样本查询** — 提供最小查询能力，能按 Skill、分数、失败类型、issue 类别筛出蒸馏候选
-6. [ ] **Step 6：蒸馏工作流文档** — 明确“证据如何变成候选规则”，与 `docs/knowledge/principles/skill-evolution-sop.md` 对齐，但保留人工确认门禁
+1. [ ] **Step 1：Skill 选择链路优化** — 把 Skill meta 作为 `Skill Index` 由 Java 侧注入 prompt，避免 LLM 忘记调用 `listSkills`（plan 已写：`plan/step1-skill-index-prompt.md`）
+2. [ ] **Step 2：证据清点与字段契约** — 对齐当前 `sessions / messages / game_runs`、`ToolContext.activeSkill`、`WorkingMemory`、`ProbeReport`，明确哪些事实必须落库（plan 已写：`plan/step2-evidence-fields.md`）
+3. [ ] **Step 3：持久化设计** — 新增 `game_run_evaluations` + `skill_distillation_candidates` 两表（schema.sql 幂等追加），不动旧三表（plan 已写：`plan/step3-persistence-design.md`）
+4. [ ] **Step 4：运行时写入** — `EvidenceMapper` JSON 序列化 + `SessionService.recordEvidence` + Controller 调用链；`AgentLoop.run` 签名不动，`AgentLoopResult` 新增可选 evidence 字段保持向后兼容（plan 已写：`plan/step4-runtime-write.md`）
+5. [ ] **Step 5：候选样本查询** — `EvidenceController` 6 个端点 + `EvidenceQueryService` + `scripts/distillation-candidates.sh`（plan 已写：`plan/step5-candidate-query.md`）
+6. [ ] **Step 6：蒸馏工作流文档** — 明确"证据如何变成候选规则"，与 `docs/knowledge/principles/skill-evolution-sop.md` 对齐；保留人工确认门禁（plan 已写：`plan/step6-distillation-workflow.md`）
+
+> 6 个 step plan 已拆解完成 @ 2026-05-27（每 step 含「实现契约」+「验收契约」双段，可直接交 coder/evaluator 执行）。harness 任务（260521-agent-harness）已完结，提供 `EvaluationObservation` / `RunTrace` 作为本任务证据层的内存输入源。
 
 ## 链路优化子项：Skill Index 主路径
 
