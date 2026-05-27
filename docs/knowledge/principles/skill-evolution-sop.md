@@ -114,3 +114,16 @@ LLM 生成 → oracle 验证 → 失败时离线修 → 蒸馏成 SKILL.md 改�
 - 原始任务 progress：`docs/task/260521-playable-snake-evolution/progress.md`
 - 调试日志：`docs/task/260521-playable-snake-evolution/memory/2026-05-22-debug-log.md`
 - 多采样结果：`docs/task/260521-playable-snake-evolution/memory/2026-05-22-multisample-results.md`
+
+## 证据驱动版本（2026-05-27 起）
+
+任务 `260524-skill-distillation-evidence` 完成后，本 SOP 的 5 步流程现在有了运行时证据层支撑：
+
+- **Step A 基线采样** 由 `SessionService.recordEvidence` 自动写入 `game_run_evaluations` 表（含 scores by dimension / probe summary / classified issues / iter traces）
+- **Step C 离线调试** 改用 `GET /api/evidence/{evaluationId}` 拿结构化详情，不再靠日志考古
+- **Step D 蒸馏** 通过 `POST /api/evidence/{id}/promote` 进入 `candidate` 状态机
+- **Step E 多采样** 通过率达标后 `POST .../candidates/{id}/accept`；不达标 `/reject`
+
+完整操作手册见 `docs/task/260524-skill-distillation-evidence/plan/step6-distillation-workflow.md`（含 8 节点流程图 + 命令速查 + 反模式）。
+
+**关键边界**：人工裁决环节（提炼候选 / 改 SKILL.md / 多采样判读 / accept-reject）严禁自动化——SKILL.md 是知识 SSOT，权威性由人工把关。
