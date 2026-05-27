@@ -26,7 +26,7 @@
 
 ## 步骤
 
-1. [ ] **Step 1：抽 shared/playability/ 共享库** — playability-probe.js（信号采集 + 错误 hook）+ playability-driver.js（pre-flight + 探索策略 + 自然变化白名单）+ README
+1. [x] **Step 1：抽 shared/playability/ 共享库** — `playability-probe.js`（138 行，window.__PLAYABILITY__ 暴露 collect / getErrors / computeWhitelist / hasNewKeyword + 防重复注入 + JS 错误 hook）+ `playability-driver.js`（96 行，window.__PLAYABILITY_DRIVER__ 暴露 findStartButton / clickByJS）+ `README.md`（接入契约 + Java/Python 示例 + 注入时机说明）。`node --check` 双绿；行为冒烟 10/10 验收（API keys / collect 返回 5 字段 / computeWhitelist null 安全 / hasNewKeyword 关键词识别 / 防重复注入 / 空 DOM null 不抛）。@ 2026-05-27
 2. [ ] **Step 2：GameEvaluator 改造** — 用 `page.addInitScript` 注入共享 probe；`simulateInteractions` 增加键盘探索分支调用共享 driver
 3. [ ] **Step 3：oracle 改造** — `oracle-driver.py` 把内联 JS 替换为读 shared/playability/ 文件 + 注入
 4. [ ] **Step 4：交叉验证** — 4 个 fixture（snake-v0 / sample-r1-s2 / keytest / dead-page）跑两个评估器，方向一致即过
