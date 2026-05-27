@@ -1,6 +1,7 @@
 package com.sumo.agent.agent.loop;
 
 import com.sumo.agent.agent.evaluation.EvaluationObservation;
+import com.sumo.agent.agent.skill.SkillDefinition;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -31,6 +32,7 @@ public class WorkingMemory {
     private EvaluationObservation lastEvaluationObservation;
     private RunTrace runTrace = new RunTrace();
     private ControlSignals controlSignals = new ControlSignals();
+    private List<SkillDefinition> skillIndex = new ArrayList<>();
 
     public void incrementGameVersion() {
         gameVersion++;
@@ -95,5 +97,10 @@ public class WorkingMemory {
     public ControlSignals getControlSignals() { return controlSignals; }
     public void setControlSignals(ControlSignals controlSignals) {
         this.controlSignals = controlSignals != null ? controlSignals : new ControlSignals();
+    }
+
+    public List<SkillDefinition> getSkillIndex() { return skillIndex; }
+    public void setSkillIndex(List<SkillDefinition> skillIndex) {
+        this.skillIndex = skillIndex != null ? skillIndex : new ArrayList<>();
     }
 }

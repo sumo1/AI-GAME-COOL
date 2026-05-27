@@ -2,10 +2,12 @@ package com.sumo.agent.agent.loop;
 
 import com.sumo.agent.agent.evaluation.EvaluationObservation;
 import com.sumo.agent.agent.evaluation.ProbeReport;
+import com.sumo.agent.agent.skill.SkillDefinition;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -265,6 +267,90 @@ class ContextRendererTest {
         assertTrue(output.contains("iteration=\"2\""), "应含本轮 iteration 属性");
         assertTrue(output.contains("version=\"2\""), "应含 version 属性");
         assertTrue(output.contains("score 60→78 (+18)"), "应含本轮 summary");
+    }
+
+    // 14. (Step 1 / 260524) 设置 skillIndex 后 render 输出含 <skill_index> 与子标签
+    @Test
+    void render_withSkillIndex_outputsSkillIndexBlock() {
+        WorkingMemory memory = new WorkingMemory();
+
+        SkillDefinition s1 = new SkillDefinition();
+        s1.setName("snake-adventure");
+        s1.setDescription("生成贪吃蛇互动游戏，支持键盘控制");
+
+        SkillDefinition s2 = new SkillDefinition();
+        s2.setName("math-adventure");
+        s2.setDescription("生成 4-8 岁儿童的数学加减法互动游戏");
+
+        memory.setSkillIndex(List.of(s1, s2));
+
+        String output = renderer.render(memory);
+
+        assertTrue(output.contains("<skill_index>"), "应输出 <skill_index> 起始标签");
+        assertTrue(output.contains("</skill_index>"), "应输出 </skill_index> 结束标签");
+        assertTrue(output.contains("<skill name=\"snake-adventure\">"),
+                "应含第一个 skill 的 name 属性");
+        assertTrue(output.contains("生成贪吃蛇互动游戏，支持键盘控制"),
+                "应含第一个 skill 的 description");
+        assertTrue(output.contains("<skill name=\"math-adventure\">"),
+                "应含第二个 skill 的 name 属性");
+    }
+
+    // 15. (Step 1) description 超过 120 字符时被截断到 120+"..."
+    @Test
+    void render_skillIndex_descriptionLongerThan120_isTruncated() {
+        WorkingMemory memory = new WorkingMemory();
+
+        StringBuilder longDescBuilder = new StringBuilder();
+        for (int i = 0; i < 200; i++) {
+            longDescBuilder.append('a');
+        }
+        String longDesc = longDescBuilder.toString();
+
+        SkillDefinition s = new SkillDefinition();
+        s.setName("loooong-skill");
+        s.setDescription(longDesc);
+        memory.setSkillIndex(List.of(s));
+
+        String output = renderer.render(memory);
+
+        assertTrue(output.contains(longDesc.substring(0, 120) + "..."),
+                "description 超过 120 字符应被截断到 120+\"...\"");
+        assertFalse(output.contains(longDesc),
+                "原始的 200 字符 description 不应完整出现");
+    }
+
+    // 16. (Step 1) description 含 < > & 等 XML 特殊字符时被 escape
+    @Test
+    void render_skillIndex_descriptionWithXmlSpecialChars_isEscaped() {
+        WorkingMemory memory = new WorkingMemory();
+
+        SkillDefinition s = new SkillDefinition();
+        s.setName("evil-skill");
+        s.setDescription("含 <script> 与 & 还有 > 字符");
+        memory.setSkillIndex(List.of(s));
+
+        String output = renderer.render(memory);
+
+        assertTrue(output.contains("&lt;script&gt;"), "< > 应被 escape");
+        assertTrue(output.contains("&amp;"), "& 应被 escape");
+        // 原始未 escape 的 <script> 不应出现
+        assertFalse(output.contains("<script>"),
+                "原始未 escape 的 <script> 不应出现在输出");
+    }
+
+    // 17. (Step 1) 默认 WorkingMemory（skillIndex 为空 List）不输出 <skill_index>
+    //     —— 显式守护字节级相等基线（与用例 #8 互补）。
+    @Test
+    void render_defaultMemory_omitsSkillIndexBlock() {
+        WorkingMemory memory = new WorkingMemory();
+
+        String output = renderer.render(memory);
+
+        assertFalse(output.contains("<skill_index>"),
+                "默认空 skillIndex 不应输出 <skill_index> 块");
+        assertFalse(output.contains("</skill_index>"),
+                "默认空 skillIndex 不应输出 </skill_index>");
     }
 
     // 13. (Step 3) 超过 3 条 trace 时仅输出最近 3 条

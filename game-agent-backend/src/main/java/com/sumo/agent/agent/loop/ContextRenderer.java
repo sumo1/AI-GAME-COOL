@@ -2,6 +2,7 @@ package com.sumo.agent.agent.loop;
 
 import com.sumo.agent.agent.evaluation.EvaluationObservation;
 import com.sumo.agent.agent.evaluation.ObservationIssue;
+import com.sumo.agent.agent.skill.SkillDefinition;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -89,9 +90,52 @@ public class ContextRenderer {
             renderRunTraceSummary(sb, trace);
         }
 
+        // Skill Index（任务 260524 Step 1）：让 LLM 直接看到全部 Skill 摘要。
+        // 守卫：skillIndex 为空时不输出此块，保 ContextRendererTest 用例 #8 字节级相等。
+        List<SkillDefinition> skillIndex = memory != null ? memory.getSkillIndex() : null;
+        if (skillIndex != null && !skillIndex.isEmpty()) {
+            renderSkillIndex(sb, skillIndex);
+        }
+
         sb.append("  </game_state>\n");
         sb.append("</working_memory>");
         return sb.toString();
+    }
+
+    /**
+     * 渲染 Skill Index 块（Step 1）。description 截断到 120 字符避免 prompt 膨胀，
+     * 对 name/description 做 XML escape 防止特殊字符破坏结构。
+     */
+    private void renderSkillIndex(StringBuilder sb, List<SkillDefinition> skillIndex) {
+        sb.append("    <skill_index>\n");
+        for (SkillDefinition s : skillIndex) {
+            if (s == null || s.getName() == null) {
+                continue;
+            }
+            String desc = s.getDescription() != null ? s.getDescription() : "";
+            if (desc.length() > 120) {
+                desc = desc.substring(0, 120) + "...";
+            }
+            sb.append("      <skill name=\"").append(escapeXmlAttr(s.getName())).append("\">")
+              .append(escapeXmlText(desc))
+              .append("</skill>\n");
+        }
+        sb.append("    </skill_index>\n");
+    }
+
+    private static String escapeXmlAttr(String s) {
+        if (s == null) return "";
+        return s.replace("&", "&amp;")
+                .replace("\"", "&quot;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;");
+    }
+
+    private static String escapeXmlText(String s) {
+        if (s == null) return "";
+        return s.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;");
     }
 
     /**

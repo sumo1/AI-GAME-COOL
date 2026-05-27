@@ -20,7 +20,7 @@ public class SkillListTool {
     @Autowired
     private SkillLoader skillLoader;
 
-    @Tool(description = "列出可用的游戏技能。返回所有内置游戏 Skill 的名称和描述。可按关键词过滤。使用 loadSkill 获取详细操作手册。")
+    @Tool(description = "列出全部已注册的 Skill 详情（含 metadata）。注意：通常你已经能从 system prompt 的 <skill_index> 标签看到全部 Skill 名称和摘要——这个工具仅在你需要 metadata 全字段（ageGroup/gameType/tags 等）或调试场景使用。")
     public String listSkills(
             @ToolParam(description = "可选的过滤关键词，如 '数学' '英语' '记忆'，留空返回全部", required = false) String filter) {
         log.info("[listSkills] filter={}", filter);

@@ -102,6 +102,11 @@ public class AgentLoop {
             // 快速路径：尝试预加载匹配的 Skill
             tryPreloadSkill(userInput, memory);
 
+            // 注入 Skill Index 到 WorkingMemory（任务 260524 Step 1）
+            // 让 LLM 直接从 system prompt 的 <skill_index> 块看到全部 Skill 摘要，
+            // 减少 listSkills 工具调用，提高路由命中率。
+            memory.setSkillIndex(skillLoader.listSkills());
+
             for (int i = 0; i < MAX_ITERATIONS; i++) {
                 memory.setIteration(i + 1);
                 int scoreBefore = memory.getEvalScore();

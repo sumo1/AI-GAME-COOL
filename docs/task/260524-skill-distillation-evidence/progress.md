@@ -43,7 +43,7 @@
 
 ## 步骤
 
-1. [ ] **Step 1：Skill 选择链路优化** — 把 Skill meta 作为 `Skill Index` 由 Java 侧注入 prompt，避免 LLM 忘记调用 `listSkills`（plan 已写：`plan/step1-skill-index-prompt.md`）
+1. [x] **Step 1：Skill 选择链路优化** — `WorkingMemory.skillIndex` 字段（默认空 List）；`AgentLoop.run` 在 `tryPreloadSkill` 后注入 `skillLoader.listSkills()`；`ContextRenderer` 末尾追加 `<skill_index>` 守卫块（默认空时不输出，保字节级相等基线）；description 截断 120 字符 + XML escape；`SkillListTool` `@Tool description` 改为「通常已能从 `<skill_index>` 看到摘要」语义；`SkillListTool/SkillLoadTool` 方法签名不动；ContextRendererTest 17 用例 + SkillIndexInjectionTest 3 用例 + 全量 74 用例全过。@ 2026-05-27 / 偏离：未新建 `SkillMeta` record，直接复用 `SkillDefinition`，与 plan 「不可新增的抽象」精神一致
 2. [ ] **Step 2：证据清点与字段契约** — 对齐当前 `sessions / messages / game_runs`、`ToolContext.activeSkill`、`WorkingMemory`、`ProbeReport`，明确哪些事实必须落库（plan 已写：`plan/step2-evidence-fields.md`）
 3. [ ] **Step 3：持久化设计** — 新增 `game_run_evaluations` + `skill_distillation_candidates` 两表（schema.sql 幂等追加），不动旧三表（plan 已写：`plan/step3-persistence-design.md`）
 4. [ ] **Step 4：运行时写入** — `EvidenceMapper` JSON 序列化 + `SessionService.recordEvidence` + Controller 调用链；`AgentLoop.run` 签名不动，`AgentLoopResult` 新增可选 evidence 字段保持向后兼容（plan 已写：`plan/step4-runtime-write.md`）
