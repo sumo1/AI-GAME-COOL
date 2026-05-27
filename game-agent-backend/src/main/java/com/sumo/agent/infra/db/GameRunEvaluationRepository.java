@@ -6,6 +6,7 @@ import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -150,5 +151,73 @@ public class GameRunEvaluationRepository {
 
     public List<GameRunEvaluationEntity> listFailures(int limit) {
         return jdbc.query(LIST_FAILURES_SQL, LIST_ROW_MAPPER, limit);
+    }
+
+    // -----------------------------------------------------------------------
+    // Step 5：候选样本查询增量
+    // -----------------------------------------------------------------------
+
+    private static final String LIST_BY_SKILL_SCORE_SQL =
+            "SELECT " + LIST_COLUMNS + " FROM game_run_evaluations " +
+                    "WHERE skill_name = ? AND total_score >= ? AND total_score <= ? " +
+                    "ORDER BY total_score ASC, created_at DESC LIMIT ?";
+
+    /** 按 skill + 分数区间筛候选（低分优先）。*_json 字段不读。 */
+    public List<GameRunEvaluationEntity> listBySkillAndScore(String skillName, int minScore, int maxScore, int limit) {
+        return jdbc.query(LIST_BY_SKILL_SCORE_SQL, LIST_ROW_MAPPER, skillName, minScore, maxScore, limit);
+    }
+
+    private static final String LIST_BY_ISSUE_CATEGORY_SQL =
+            "SELECT " + LIST_COLUMNS + " FROM game_run_evaluations " +
+                    "WHERE classified_issues_json LIKE ? " +
+                    "ORDER BY created_at DESC LIMIT ?";
+
+    /**
+     * 用 SQL LIKE 在 classified_issues_json 上做关键词匹配。
+     *
+     * 性能不敏感（本地 SQLite < 万行），不做索引化。severity 给空时只过 category。
+     */
+    public List<GameRunEvaluationEntity> listByIssueCategory(String category, String severity, int limit) {
+        String catPattern = "%\"category\":\"" + category + "\"%";
+        if (severity != null && !severity.isBlank()) {
+            String sql = "SELECT " + LIST_COLUMNS + " FROM game_run_evaluations " +
+                    "WHERE classified_issues_json LIKE ? AND classified_issues_json LIKE ? " +
+                    "ORDER BY created_at DESC LIMIT ?";
+            String sevPattern = "%\"severity\":\"" + severity + "\"%";
+            return jdbc.query(sql, LIST_ROW_MAPPER, catPattern, sevPattern, limit);
+        }
+        return jdbc.query(LIST_BY_ISSUE_CATEGORY_SQL, LIST_ROW_MAPPER, catPattern, limit);
+    }
+
+    /**
+     * 按多维条件计数（全字段可空）。供 stats 端点用。
+     *
+     * onlyDegraded=true 过滤 degraded=1；onlySuccess 直接对 success 列做 0/1 映射。
+     */
+    public int countByConditions(String skillName, Integer minScore, Integer maxScore,
+                                  Boolean onlyDegraded, Boolean onlySuccess) {
+        StringBuilder sql = new StringBuilder("SELECT COUNT(*) FROM game_run_evaluations WHERE 1=1");
+        List<Object> args = new ArrayList<>();
+        if (skillName != null && !skillName.isBlank()) {
+            sql.append(" AND skill_name = ?");
+            args.add(skillName);
+        }
+        if (minScore != null) {
+            sql.append(" AND total_score >= ?");
+            args.add(minScore);
+        }
+        if (maxScore != null) {
+            sql.append(" AND total_score <= ?");
+            args.add(maxScore);
+        }
+        if (Boolean.TRUE.equals(onlyDegraded)) {
+            sql.append(" AND degraded = 1");
+        }
+        if (onlySuccess != null) {
+            sql.append(" AND success = ?");
+            args.add(onlySuccess ? 1 : 0);
+        }
+        Integer n = jdbc.queryForObject(sql.toString(), Integer.class, args.toArray());
+        return n != null ? n : 0;
     }
 }

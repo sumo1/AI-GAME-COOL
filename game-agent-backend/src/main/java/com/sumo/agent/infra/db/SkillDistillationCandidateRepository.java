@@ -115,4 +115,48 @@ public class SkillDistillationCandidateRepository {
     public synchronized int deleteById(String id) {
         return jdbc.update(DELETE_BY_ID_SQL, id);
     }
+
+    // -----------------------------------------------------------------------
+    // Step 5：候选样本查询增量
+    // -----------------------------------------------------------------------
+
+    private static final String LIST_BY_STATUS_SQL =
+            "SELECT " + COLUMNS + " FROM skill_distillation_candidates WHERE status = ? " +
+                    "ORDER BY updated_at DESC LIMIT ?";
+
+    /** 按 status 列出（最新更新优先）。 */
+    public List<SkillDistillationCandidateEntity> listByStatus(String status, int limit) {
+        return jdbc.query(LIST_BY_STATUS_SQL, ROW_MAPPER, status, limit);
+    }
+
+    private static final String FIND_BY_EVALUATION_SQL =
+            "SELECT " + COLUMNS + " FROM skill_distillation_candidates WHERE evaluation_id = ? LIMIT 1";
+
+    public Optional<SkillDistillationCandidateEntity> findByEvaluationId(String evaluationId) {
+        try {
+            return Optional.of(jdbc.queryForObject(FIND_BY_EVALUATION_SQL, ROW_MAPPER, evaluationId));
+        } catch (EmptyResultDataAccessException ex) {
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * 按 evaluationId 幂等推进 candidate：已存在则更新 status/note + updated_at；否则新建。
+     *
+     * 返回受影响 candidate 行的 id。
+     */
+    public synchronized String upsertFromEvaluation(String evaluationId, String skillName, String status, String note) {
+        Optional<SkillDistillationCandidateEntity> existing = findByEvaluationId(evaluationId);
+        if (existing.isPresent()) {
+            SkillDistillationCandidateEntity c = existing.get();
+            updateStatus(c.getId(), status, note);
+            return c.getId();
+        }
+        SkillDistillationCandidateEntity c = new SkillDistillationCandidateEntity();
+        c.setEvaluationId(evaluationId);
+        c.setSkillName(skillName);
+        c.setStatus(status != null ? status : "raw");
+        c.setNote(note);
+        return insert(c);
+    }
 }
