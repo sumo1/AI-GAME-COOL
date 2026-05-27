@@ -1,6 +1,11 @@
 package com.sumo.agent.agent.loop;
 
+import com.sumo.agent.agent.evaluation.EvaluationObservation;
+import com.sumo.agent.agent.evaluation.ProbeReport;
 import org.junit.jupiter.api.Test;
+
+import java.util.Arrays;
+import java.util.Collections;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -147,5 +152,63 @@ class ContextRendererTest {
 
         assertEquals(fromMemory, fromRenderer,
                 "WorkingMemory.toContextXml() 与 ContextRenderer.render() 必须完全相等");
+        // Step 2 关键约束：未设置 lastEvaluationObservation 时不应输出新块
+        assertFalse(fromRenderer.contains("<evaluation_observation>"),
+                "obs 未设置时 render 不应输出 <evaluation_observation>");
+    }
+
+    // 9. 设置了 EvaluationObservation 后 render 输出含结构化块
+    @Test
+    void render_withEvaluationObservation_outputsStructuredBlock() {
+        WorkingMemory memory = new WorkingMemory();
+
+        ProbeReport report = new ProbeReport();
+        report.setTotalScore(72);
+        report.setRunnabilityScore(18);
+        report.setLayoutScore(14);
+        report.setInteractivityScore(15);
+        report.setCompletenessScore(13);
+        report.setEducationScore(12);
+        report.setPageLoaded(true);
+        report.setDomMutationsCount(5);
+        report.setStateTransitions(Arrays.asList("idle->playing"));
+        report.setIssues(Arrays.asList("[交互] 未发现事件监听器"));
+
+        EvaluationObservation obs = EvaluationObservation.fromProbeReport(report);
+        memory.setLastEvaluationObservation(obs);
+
+        String output = renderer.render(memory);
+
+        assertTrue(output.contains("<evaluation_observation>"), "应输出新块");
+        assertTrue(output.contains("</evaluation_observation>"), "应正确闭合");
+        assertTrue(output.contains("<total_score>72/100</total_score>"), "总分输出格式");
+        assertTrue(output.contains("<scores>"), "应含 <scores>");
+        assertTrue(output.contains("<runnability>18/20</runnability>"));
+        assertTrue(output.contains("<layout>14/20</layout>"));
+        assertTrue(output.contains("<interactivity>15/20</interactivity>"));
+        assertTrue(output.contains("<completeness>13/20</completeness>"));
+        assertTrue(output.contains("<education>12/20</education>"));
+        assertTrue(output.contains("<probe_summary>"), "应含 <probe_summary>");
+        assertTrue(output.contains("<page_loaded>true</page_loaded>"));
+        assertTrue(output.contains("<dom_mutations>5</dom_mutations>"));
+        assertTrue(output.contains("<classified_issues>"), "应含 <classified_issues>");
+        assertTrue(output.contains("category=\"interactivity\""), "issue 的 category 属性");
+        assertTrue(output.contains("severity=\"major\""), "issue 的 severity 属性");
+    }
+
+    // 10. degraded 观察输出含 <degraded> 与 <degraded_reason>
+    @Test
+    void render_withDegradedObservation_outputsDegradedTags() {
+        WorkingMemory memory = new WorkingMemory();
+        EvaluationObservation obs = EvaluationObservation.degraded(
+                50, "Playwright 超时", Collections.singletonList("[评估] 超时"));
+        memory.setLastEvaluationObservation(obs);
+
+        String output = renderer.render(memory);
+
+        assertTrue(output.contains("<degraded>true</degraded>"), "降级标志应输出");
+        assertTrue(output.contains("<degraded_reason>Playwright 超时</degraded_reason>"),
+                "降级原因应输出");
+        assertTrue(output.contains("<total_score>50/100</total_score>"));
     }
 }

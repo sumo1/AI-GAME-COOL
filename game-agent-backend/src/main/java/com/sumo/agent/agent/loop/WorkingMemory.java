@@ -1,5 +1,7 @@
 package com.sumo.agent.agent.loop;
 
+import com.sumo.agent.agent.evaluation.EvaluationObservation;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -26,6 +28,7 @@ public class WorkingMemory {
     private String gameTitle;
     private String preloadedSkill;
     private final List<String> openIssues = new ArrayList<>();
+    private EvaluationObservation lastEvaluationObservation;
 
     public void incrementGameVersion() {
         gameVersion++;
@@ -76,4 +79,9 @@ public class WorkingMemory {
     public void setPreloadedSkill(String preloadedSkill) { this.preloadedSkill = preloadedSkill; }
 
     public List<String> getOpenIssues() { return openIssues; }
+
+    public EvaluationObservation getLastEvaluationObservation() { return lastEvaluationObservation; }
+    public void setLastEvaluationObservation(EvaluationObservation lastEvaluationObservation) {
+        this.lastEvaluationObservation = lastEvaluationObservation;
+    }
 }

@@ -1,5 +1,6 @@
 package com.sumo.agent.agent.tools.evaluation;
 
+import com.sumo.agent.agent.evaluation.EvaluationObservation;
 import com.sumo.agent.agent.evaluation.GameEvaluator;
 import com.sumo.agent.agent.evaluation.ProbeReport;
 import com.sumo.agent.agent.loop.WorkingMemory;
@@ -68,6 +69,11 @@ public class GameEvaluationTool {
                     openIssues.addAll(report.getIssues());
                 }
                 memory.setIssueCount(openIssues.size());
+
+                // 结构化观察：让 LLM 在下一轮 prompt 中按 category/severity 取证据
+                EvaluationObservation observation = EvaluationObservation.fromProbeReport(report);
+                memory.setLastEvaluationObservation(observation);
+
                 log.info("WorkingMemory 已更新: evalScore={}, issues={}", report.getTotalScore(), openIssues.size());
             }
 
@@ -115,6 +121,10 @@ public class GameEvaluationTool {
             memory.getOpenIssues().clear();
             memory.getOpenIssues().addAll(issues);
             memory.setIssueCount(issues.size());
+
+            // 降级观察：明确标记 degraded=true，告知 LLM 这轮没有运行时事实
+            EvaluationObservation observation = EvaluationObservation.degraded(score, "Playwright 超时", issues);
+            memory.setLastEvaluationObservation(observation);
         }
 
         return sb.toString();

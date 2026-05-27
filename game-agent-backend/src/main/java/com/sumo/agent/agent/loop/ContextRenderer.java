@@ -1,5 +1,8 @@
 package com.sumo.agent.agent.loop;
 
+import com.sumo.agent.agent.evaluation.EvaluationObservation;
+import com.sumo.agent.agent.evaluation.ObservationIssue;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -66,9 +69,69 @@ public class ContextRenderer {
             sb.append("    <suggested_skill>").append(preloadedSkill).append("</suggested_skill>\n");
         }
 
+        // 评估观察（结构化反馈，由 GameEvaluationTool 写入）
+        // 只有显式写入过 lastEvaluationObservation 才输出，保持与 Step 1 输出字节级相等
+        EvaluationObservation obs = memory != null ? memory.getLastEvaluationObservation() : null;
+        if (obs != null) {
+            renderEvaluationObservation(sb, obs);
+        }
+
         sb.append("  </game_state>\n");
         sb.append("</working_memory>");
         return sb.toString();
+    }
+
+    /**
+     * 渲染 EvaluationObservation 为 XML 子树，缩进 4 空格（处于 game_state 内部）。
+     */
+    private void renderEvaluationObservation(StringBuilder sb, EvaluationObservation obs) {
+        sb.append("    <evaluation_observation>\n");
+        if (obs.isDegraded()) {
+            sb.append("      <degraded>true</degraded>\n");
+            if (obs.getDegradedReason() != null) {
+                sb.append("      <degraded_reason>").append(obs.getDegradedReason()).append("</degraded_reason>\n");
+            }
+        }
+        sb.append("      <total_score>").append(obs.getTotalScore()).append("/100</total_score>\n");
+
+        if (obs.getScoresByDimension() != null && !obs.getScoresByDimension().isEmpty()) {
+            sb.append("      <scores>\n");
+            // 固定顺序输出，避免不同 JVM Map 实现差异
+            String[] dims = {"runnability", "layout", "interactivity", "completeness", "education"};
+            for (String d : dims) {
+                Integer s = obs.getScoresByDimension().get(d);
+                if (s != null) {
+                    sb.append("        <").append(d).append(">").append(s).append("/20</").append(d).append(">\n");
+                }
+            }
+            sb.append("      </scores>\n");
+        }
+
+        EvaluationObservation.ProbeSummary ps = obs.getProbeSummary();
+        if (ps != null) {
+            sb.append("      <probe_summary>\n");
+            sb.append("        <page_loaded>").append(ps.isPageLoaded()).append("</page_loaded>\n");
+            sb.append("        <js_errors>").append(ps.getJsErrorCount()).append("</js_errors>\n");
+            sb.append("        <events>").append(ps.getEventCount()).append("</events>\n");
+            sb.append("        <dom_mutations>").append(ps.getDomMutationsCount()).append("</dom_mutations>\n");
+            sb.append("        <out_of_bounds>").append(ps.getOutOfBoundsCount()).append("</out_of_bounds>\n");
+            if (ps.getFinalScore() != null) {
+                sb.append("        <final_score>").append(ps.getFinalScore()).append("</final_score>\n");
+            }
+            sb.append("      </probe_summary>\n");
+        }
+
+        if (obs.getIssues() != null && !obs.getIssues().isEmpty()) {
+            sb.append("      <classified_issues>\n");
+            for (ObservationIssue iss : obs.getIssues()) {
+                sb.append("        <issue category=\"").append(iss.getCategory())
+                  .append("\" severity=\"").append(iss.getSeverity()).append("\">")
+                  .append(iss.getMessage()).append("</issue>\n");
+            }
+            sb.append("      </classified_issues>\n");
+        }
+
+        sb.append("    </evaluation_observation>\n");
     }
 
     /**
